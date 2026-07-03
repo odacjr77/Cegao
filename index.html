@@ -21,58 +21,41 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <!-- ═══ HOME ═══ -->
+  <!-- ══ ENTRADA ══ -->
   <div id="view-home" class="view active">
     <div class="home-hero">
       <p class="eyebrow">Degustação Às Cegas</p>
       <h1 class="hero-title">Você sabe o que<br>está bebendo?</h1>
       <p class="hero-sub">Prove, chute o nome, veja quem acertou mais.</p>
     </div>
-    <div class="role-grid">
-      <button class="role-card" onclick="ir('view-entrar')">
-        <div class="role-icon">🥂</div>
-        <div class="role-name">Participante</div>
-        <div class="role-desc">Entrar num campeonato e votar</div>
-      </button>
-      <button class="role-card" onclick="ir('view-admin-login')">
-        <div class="role-icon">🎯</div>
-        <div class="role-name">Admin</div>
-        <div class="role-desc">Criar campeonato e revelar resultados</div>
-      </button>
-    </div>
-  </div>
-
-  <!-- ═══ PARTICIPANTE: ENTRAR ═══ -->
-  <div id="view-entrar" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="irHome()">← Voltar</button>
-      <h2>Entrar no Campeonato</h2>
-    </div>
     <div class="card">
       <div class="field">
-        <label>Código do campeonato</label>
-        <input id="p-codigo" type="text" placeholder="Ex: FESTA25" maxlength="12" autocomplete="off"
-               oninput="this.value=this.value.toUpperCase()" />
-      </div>
-      <div class="field">
         <label>Seu nome</label>
-        <input id="p-nome" type="text" placeholder="Como quer ser chamado" maxlength="40" />
+        <input id="ent-nome" type="text" placeholder="Como quer ser chamado" maxlength="40" />
       </div>
       <div class="field">
-        <label>Telefone <span class="opt">(opcional)</span></label>
-        <input id="p-telefone" type="tel" placeholder="11 99999-9999" maxlength="20" />
+        <label>Telefone <span class="opt">(opcional — admins precisam informar)</span></label>
+        <input id="ent-tel" type="tel" placeholder="11 99999-9999" maxlength="20" />
       </div>
       <button class="btn-primary" onclick="entrar()">Entrar</button>
     </div>
   </div>
 
-  <!-- ═══ PARTICIPANTE: VOTAÇÃO ═══ -->
+  <!-- ══ PARTICIPANTE: LISTA DE CAMPEONATOS ══ -->
+  <div id="view-lista" class="view">
+    <div class="vheader">
+      <button class="btn-back" onclick="irHome()">← Sair</button>
+      <h2 id="lista-titulo">Campeonatos</h2>
+    </div>
+    <div id="lista-camps" class="lista-camps"></div>
+  </div>
+
+  <!-- ══ PARTICIPANTE: VOTAÇÃO ══ -->
   <div id="view-votacao" class="view">
     <div class="vheader">
-      <button class="btn-back" onclick="ir('view-entrar')">← Sair</button>
+      <button class="btn-back" onclick="ir('view-lista')">← Voltar</button>
       <h2 id="vot-titulo">Campeonato</h2>
     </div>
-    <p class="vot-nome" id="vot-nome"></p>
 
     <div id="vot-form">
       <p class="instrucao">Para cada bebida, escreva o nome que você acha que é:</p>
@@ -84,89 +67,71 @@
       <div class="aguardando-card">
         <div class="agu-icon">🎭</div>
         <h3>Votos enviados!</h3>
-        <p>Aguarde o admin revelar os resultados.</p>
-        <button class="btn-outline" style="margin-top:20px" onclick="verResultados()">Ver resultados</button>
+        <p>Aguarde o administrador revelar os resultados.</p>
+        <button class="btn-outline" style="margin-top:20px" onclick="tentarVerResultados()">Verificar resultados</button>
       </div>
     </div>
   </div>
 
-  <!-- ═══ RESULTADOS ═══ -->
+  <!-- ══ RESULTADOS ══ -->
   <div id="view-resultados" class="view">
     <div class="vheader">
-      <button class="btn-back" id="res-back-btn" onclick="irHome()">← Início</button>
+      <button class="btn-back" onclick="ir('view-lista')">← Voltar</button>
       <h2 id="res-titulo">Resultados</h2>
     </div>
     <div id="res-gabarito" class="gabarito"></div>
-    <div id="res-ranking" class="ranking"></div>
+    <div id="res-ranking"  class="ranking"></div>
   </div>
 
-  <!-- ═══ ADMIN: LOGIN ═══ -->
-  <div id="view-admin-login" class="view">
+  <!-- ══ ADMIN: PAINEL ══ -->
+  <div id="view-admin" class="view">
     <div class="vheader">
-      <button class="btn-back" onclick="irHome()">← Voltar</button>
+      <button class="btn-back" onclick="irHome()">← Sair</button>
       <h2>Painel Admin</h2>
     </div>
-    <div class="tab-bar">
-      <button class="tab active" data-panel="tab-entrar-adm" onclick="switchTab(this)">Entrar</button>
-      <button class="tab" data-panel="tab-criar-adm" onclick="switchTab(this)">Criar novo</button>
-    </div>
 
-    <div id="tab-entrar-adm" class="tab-panel active card">
-      <div class="field">
-        <label>Nome do campeonato</label>
-        <input id="adm-camp-nome" type="text" placeholder="Nome exato do campeonato" />
+    <!-- Criar campeonato -->
+    <section class="adm-section">
+      <div class="adm-section-hdr">
+        <h3>Campeonatos ativos</h3>
+        <button class="btn-sm" onclick="toggleCriar()">+ Novo</button>
       </div>
-      <div class="field">
-        <label>Senha de admin</label>
-        <input id="adm-senha" type="password" placeholder="Sua senha" />
-      </div>
-      <button class="btn-primary" onclick="loginAdmin()">Entrar</button>
-    </div>
 
-    <div id="tab-criar-adm" class="tab-panel card hidden">
-      <div class="field">
-        <label>Nome do campeonato</label>
-        <input id="c-nome" type="text" placeholder="Ex: Whisky Night 2025" />
+      <div id="form-criar" class="card hidden" style="margin-bottom:14px">
+        <div class="field">
+          <label>Nome do campeonato</label>
+          <input id="c-nome" type="text" placeholder="Ex: Whisky Night 2025" />
+        </div>
+        <div class="field">
+          <label>Bebidas (uma por linha, na ordem de serviço)</label>
+          <textarea id="c-bebidas" rows="5" placeholder="Skoll&#10;Brahma&#10;Antarctica&#10;Heineken"></textarea>
+          <span class="hint">Participantes verão apenas os números: Bebida 1, Bebida 2...</span>
+        </div>
+        <button class="btn-primary" onclick="criarCampeonato()">Criar</button>
       </div>
-      <div class="field">
-        <label>Código para participantes</label>
-        <input id="c-codigo" type="text" placeholder="Ex: FESTA25" maxlength="12"
-               oninput="this.value=this.value.toUpperCase()" />
-        <span class="hint">Participantes usam este código para entrar</span>
-      </div>
-      <div class="field">
-        <label>Senha de admin</label>
-        <input id="c-senha" type="password" placeholder="Defina uma senha" />
-      </div>
-      <div class="field">
-        <label>Bebidas (uma por linha, na ordem de serviço)</label>
-        <textarea id="c-bebidas" rows="6" placeholder="Skoll&#10;Brahma&#10;Antarctica&#10;Heineken"></textarea>
-        <span class="hint">Os participantes verão apenas os números 1, 2, 3...</span>
-      </div>
-      <button class="btn-primary" onclick="criarCampeonato()">Criar campeonato</button>
-    </div>
+
+      <div id="adm-lista-camps" class="lista-camps"></div>
+    </section>
   </div>
 
-  <!-- ═══ ADMIN: PAINEL ═══ -->
-  <div id="view-admin-painel" class="view">
+  <!-- ══ ADMIN: GERENCIAR CAMPEONATO ══ -->
+  <div id="view-admin-camp" class="view">
     <div class="vheader">
-      <button class="btn-back" onclick="ir('view-admin-login')">← Sair</button>
-      <h2 id="adm-titulo">Campeonato</h2>
+      <button class="btn-back" onclick="ir('view-admin')">← Voltar</button>
+      <h2 id="adm-camp-titulo"></h2>
     </div>
-
-    <div class="adm-info card" id="adm-info"></div>
 
     <section class="adm-section">
       <div class="adm-section-hdr">
-        <h3>Progresso dos participantes</h3>
-        <button class="btn-sm" onclick="recarregar()">↻</button>
+        <h3>Participantes e votos</h3>
+        <button class="btn-sm" onclick="recarregarCamp()">↻</button>
       </div>
       <div id="adm-prog" class="adm-prog"></div>
     </section>
 
     <section class="adm-section">
-      <h3>Gabarito</h3>
-      <div id="adm-gabarito" class="adm-gabarito"></div>
+      <h3>Gabarito (só você vê)</h3>
+      <div id="adm-gab" class="gabarito" style="margin-top:10px"></div>
     </section>
 
     <section class="adm-acoes">
@@ -174,7 +139,7 @@
       <button class="btn-outline btn-danger" onclick="encerrar()">Encerrar campeonato</button>
     </section>
 
-    <div id="adm-resultados" class="hidden">
+    <div id="adm-res-wrap" class="hidden">
       <h3 class="adm-res-titulo">🏆 Ranking</h3>
       <div id="adm-ranking" class="ranking"></div>
     </div>

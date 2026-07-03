@@ -1,203 +1,193 @@
 // ═══════════════════════════════════════════════════════════════
-//  CEGÃO — Google Apps Script Webhook
-//  Cole este código em: Extensões → Apps Script
-//  Depois: Implantar → Nova implantação → App da Web
-//    - Executar como: Eu
-//    - Quem tem acesso: Qualquer pessoa
-//  Copie a URL gerada e cole no arquivo .env do projeto.
+//  CEGÃO — Google Apps Script Webhook  (v2)
+//  Cole em: Extensões → Apps Script → Implantar → Nova implantação
+//    Tipo: App da Web | Executar como: Eu | Acesso: Qualquer pessoa
 // ═══════════════════════════════════════════════════════════════
 
-const SS_ID       = '10lvKVXjp02_7jEr4oPraVQgx11E8-iRFaRjk2xh5qSw';
-const ABA_VOTOS   = 'Votos';
-const ABA_CAMPS   = 'Campeonatos';
+var SS_ID     = '10lvKVXjp02_7jEr4oPraVQgx11E8-iRFaRjk2xh5qSw';
+var ABA_ADM   = 'Administradores';
+var ABA_CAMPS = 'Campeonatos';
+var ABA_VOTOS = 'Votos';
 
-// Cabeçalhos esperados
-const HDR_VOTOS = ['Nome','Telefone','Campeonato','Voto 1','Voto 2','Voto 3','Voto 4','Voto 5','Voto 6','Voto 7','Voto 8','Voto 9','Voto 10','Voto 11','Voto 12','Voto 13','Voto 14','Voto 15','Acertos'];
-const HDR_CAMPS = ['Nome','Codigo','Senha','Bebida 1','Bebida 2','Bebida 3','Bebida 4','Bebida 5','Bebida 6','Bebida 7','Bebida 8','Bebida 9','Bebida 10','Bebida 11','Bebida 12','Bebida 13','Bebida 14','Bebida 15','Status','Revelado'];
+var HDR_ADM   = ['Nome', 'Telefone'];
+var HDR_CAMPS = ['Nome', 'Bebida 1','Bebida 2','Bebida 3','Bebida 4','Bebida 5',
+                 'Bebida 6','Bebida 7','Bebida 8','Bebida 9','Bebida 10',
+                 'Bebida 11','Bebida 12','Bebida 13','Bebida 14','Bebida 15',
+                 'Status', 'Revelado'];
+var HDR_VOTOS = ['Nome','Telefone','Campeonato',
+                 'Voto 1','Voto 2','Voto 3','Voto 4','Voto 5',
+                 'Voto 6','Voto 7','Voto 8','Voto 9','Voto 10',
+                 'Voto 11','Voto 12','Voto 13','Voto 14','Voto 15','Acertos'];
 
-function _ss()   { return SpreadsheetApp.openById(SS_ID); }
-function _json(o){ return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function ss_()   { return SpreadsheetApp.openById(SS_ID); }
+function json_(o){ return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
-function _aba(nome, headers) {
-  var ss = _ss();
+function aba_(nome, hdrs) {
+  var ss = ss_();
   var ws = ss.getSheetByName(nome);
-  if (!ws) {
-    ws = ss.insertSheet(nome);
-    ws.appendRow(headers);
-  }
+  if (!ws) { ws = ss.insertSheet(nome); ws.appendRow(hdrs); }
   return ws;
 }
 
-function _registros(ws) {
+function rows_(ws) {
   var data = ws.getDataRange().getValues();
   if (data.length < 2) return [];
-  var hdrs = data[0];
-  return data.slice(1).map(function(row) {
-    var obj = {};
-    hdrs.forEach(function(h, i) { obj[h] = row[i]; });
-    return obj;
+  var h = data[0];
+  return data.slice(1).map(function(r) {
+    var o = {}; h.forEach(function(k,i){ o[k] = r[i]; }); return o;
   });
 }
 
-// ── GET ─────────────────────────────────────────────────────────
+function tel_(t) { return String(t || '').replace(/\D/g,''); }
+
+function isAdmin_(telefone) {
+  if (!telefone) return false;
+  var t = tel_(telefone);
+  if (!t) return false;
+  var ws = ss_().getSheetByName(ABA_ADM);
+  if (!ws) return false;
+  return rows_(ws).some(function(r){ return tel_(r['Telefone']) === t; });
+}
+
+// ── GET ───────────────────────────────────────────────────────────────────────
 function doGet(e) {
   var p = e.parameter || {};
-  var action = p.action;
 
-  if (action === 'campeonatos') {
-    var ws = _aba(ABA_CAMPS, HDR_CAMPS);
-    var camps = _registros(ws).filter(function(c) { return c['Status'] !== 'encerrado'; });
-    return _json(camps.map(function(c) {
-      return { nome: c['Nome'], codigo: c['Codigo'], revelado: c['Revelado'] === 'SIM' };
+  // Verificar se é admin
+  if (p.action === 'verificar') {
+    return json_({ admin: isAdmin_(p.telefone) });
+  }
+
+  // Listar campeonatos ativos
+  if (p.action === 'campeonatos') {
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    var camps = rows_(ws).filter(function(c){ return c['Status'] !== 'encerrado'; });
+    return json_(camps.map(function(c){
+      var qtd = 0;
+      for (var i=1;i<=15;i++) if(c['Bebida '+i]) qtd++;
+      return { nome: c['Nome'], qtd_bebidas: qtd, revelado: c['Revelado']==='SIM' };
     }));
   }
 
-  if (action === 'campeonato') {
-    var ws = _aba(ABA_CAMPS, HDR_CAMPS);
-    var regs = _registros(ws);
-    var camp = regs.find(function(c) { return c['Codigo'].toUpperCase() === (p.codigo||'').toUpperCase(); });
-    if (!camp) return _json({ erro: 'Campeonato não encontrado' });
-    var qtd = 0;
-    for (var i = 1; i <= 15; i++) { if (camp['Bebida '+i]) qtd++; }
-    return _json({ nome: camp['Nome'], codigo: camp['Codigo'], qtd_bebidas: qtd, revelado: camp['Revelado'] === 'SIM' });
+  // Votos de um campeonato
+  if (p.action === 'votos') {
+    var ws = aba_(ABA_VOTOS, HDR_VOTOS);
+    var nome = (p.campeonato||'').toLowerCase();
+    return json_(rows_(ws).filter(function(r){ return (r['Campeonato']||'').toLowerCase()===nome; }));
   }
 
-  if (action === 'votos') {
-    var ws = _aba(ABA_VOTOS, HDR_VOTOS);
-    var regs = _registros(ws);
-    var camp = (p.campeonato||'').toLowerCase();
-    return _json(regs.filter(function(r) { return (r['Campeonato']||'').toLowerCase() === camp; }));
-  }
-
-  if (action === 'resultados') {
-    var wsCamps = _aba(ABA_CAMPS, HDR_CAMPS);
-    var wsVotos = _aba(ABA_VOTOS, HDR_VOTOS);
-    var campNome = (p.campeonato||'').toLowerCase();
-    var camp = _registros(wsCamps).find(function(c) { return (c['Nome']||'').toLowerCase() === campNome; });
-    if (!camp) return _json({ erro: 'Campeonato não encontrado' });
-    if (camp['Revelado'] !== 'SIM') return _json({ erro: 'Ainda não revelado' });
-    var votos = _registros(wsVotos).filter(function(r) { return (r['Campeonato']||'').toLowerCase() === campNome; });
+  // Resultados (só após revelação)
+  if (p.action === 'resultados') {
+    var wsCamps = aba_(ABA_CAMPS, HDR_CAMPS);
+    var wsVotos = aba_(ABA_VOTOS, HDR_VOTOS);
+    var nome = (p.campeonato||'').toLowerCase();
+    var camp = rows_(wsCamps).find(function(c){ return (c['Nome']||'').toLowerCase()===nome; });
+    if (!camp) return json_({ erro: 'Campeonato não encontrado' });
+    if (camp['Revelado']!=='SIM') return json_({ erro: 'Ainda não revelado' });
     var bebidas = [];
-    for (var i = 1; i <= 15; i++) { if (camp['Bebida '+i]) bebidas.push(camp['Bebida '+i]); }
-    return _json({ bebidas: bebidas, votos: votos });
+    for (var i=1;i<=15;i++) if(camp['Bebida '+i]) bebidas.push(camp['Bebida '+i]);
+    var votos = rows_(wsVotos).filter(function(r){ return (r['Campeonato']||'').toLowerCase()===nome; });
+    return json_({ bebidas: bebidas, votos: votos });
   }
 
-  return _json({ ok: true, msg: 'Cegão API online' });
+  return json_({ ok: true });
 }
 
-// ── POST ─────────────────────────────────────────────────────────
+// ── POST ──────────────────────────────────────────────────────────────────────
 function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var action = data.action;
+  var d = JSON.parse(e.postData.contents);
 
-  // Criar campeonato
-  if (action === 'criar_campeonato') {
-    var ws = _aba(ABA_CAMPS, HDR_CAMPS);
-    var regs = _registros(ws);
-    var jaExiste = regs.find(function(c) { return c['Codigo'].toUpperCase() === (data.codigo||'').toUpperCase(); });
-    if (jaExiste) return _json({ erro: 'Código já em uso' });
-    var row = [data.nome, (data.codigo||'').toUpperCase(), data.senha];
-    for (var i = 1; i <= 15; i++) { row.push((data.bebidas && data.bebidas[i-1]) ? data.bebidas[i-1] : ''); }
-    row.push('ativo', 'NAO');
+  // Criar campeonato (admin)
+  if (d.action === 'criar_campeonato') {
+    if (!isAdmin_(d.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    var jaExiste = rows_(ws).some(function(c){ return (c['Nome']||'').toLowerCase()===(d.nome||'').toLowerCase(); });
+    if (jaExiste) return json_({ erro: 'Já existe um campeonato com este nome' });
+    var row = [d.nome];
+    for (var i=1;i<=15;i++) row.push((d.bebidas && d.bebidas[i-1]) ? d.bebidas[i-1] : '');
+    row.push('ativo','NAO');
     ws.appendRow(row);
-    return _json({ ok: true, nome: data.nome, codigo: (data.codigo||'').toUpperCase() });
+    return json_({ ok: true, nome: d.nome });
   }
 
-  // Registrar voto
-  if (action === 'votar') {
-    var wsCamps = _aba(ABA_CAMPS, HDR_CAMPS);
-    var wsVotos = _aba(ABA_VOTOS, HDR_VOTOS);
-    var camp = _registros(wsCamps).find(function(c) { return (c['Nome']||'').toLowerCase() === (data.campeonato||'').toLowerCase(); });
-    if (!camp) return _json({ erro: 'Campeonato não encontrado' });
-    if (camp['Status'] === 'encerrado') return _json({ erro: 'Campeonato encerrado' });
+  // Registrar voto (participante)
+  if (d.action === 'votar') {
+    var wsCamps = aba_(ABA_CAMPS, HDR_CAMPS);
+    var wsVotos = aba_(ABA_VOTOS, HDR_VOTOS);
+    var camp = rows_(wsCamps).find(function(c){ return (c['Nome']||'').toLowerCase()===(d.campeonato||'').toLowerCase(); });
+    if (!camp) return json_({ erro: 'Campeonato não encontrado' });
+    if (camp['Status']==='encerrado') return json_({ erro: 'Campeonato encerrado' });
 
-    // Verificar se já votou
-    var todosVotos = _registros(wsVotos);
-    var jaVotou = todosVotos.find(function(v) {
-      return (v['Campeonato']||'').toLowerCase() === (data.campeonato||'').toLowerCase()
-          && (v['Nome']||'').toLowerCase() === (data.nome||'').toLowerCase();
-    });
+    var nomeLow = (d.nome||'').toLowerCase();
+    var todos = wsVotos.getDataRange().getValues();
+    var hdrs  = todos[0];
+    var row = [d.nome, d.telefone||'', d.campeonato];
+    for (var i=1;i<=15;i++) row.push((d.votos&&d.votos[i-1]) ? d.votos[i-1] : '');
+    row.push('');
 
-    var row = [data.nome, data.telefone || '', data.campeonato];
-    for (var i = 1; i <= 15; i++) { row.push((data.votos && data.votos[i-1]) ? data.votos[i-1] : ''); }
-    row.push(''); // Acertos calculado depois
-
-    if (jaVotou) {
-      // Atualizar linha existente
-      var allData = wsVotos.getDataRange().getValues();
-      for (var r = 1; r < allData.length; r++) {
-        if ((allData[r][0]||'').toLowerCase() === (data.nome||'').toLowerCase()
-            && (allData[r][2]||'').toLowerCase() === (data.campeonato||'').toLowerCase()) {
-          wsVotos.getRange(r+1, 1, 1, row.length).setValues([row]);
-          break;
-        }
+    // Atualizar se já votou
+    for (var r=1; r<todos.length; r++) {
+      if ((todos[r][0]||'').toLowerCase()===nomeLow
+       && (todos[r][2]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
+        wsVotos.getRange(r+1,1,1,row.length).setValues([row]);
+        return json_({ ok:true, atualizado:true });
       }
-      return _json({ ok: true, atualizado: true });
-    } else {
-      wsVotos.appendRow(row);
-      return _json({ ok: true, atualizado: false });
     }
+    wsVotos.appendRow(row);
+    return json_({ ok:true, atualizado:false });
   }
 
-  // Revelar resultados
-  if (action === 'revelar') {
-    var wsCamps = _aba(ABA_CAMPS, HDR_CAMPS);
-    var wsVotos = _aba(ABA_VOTOS, HDR_VOTOS);
-    var hdrs = wsCamps.getRange(1, 1, 1, wsCamps.getLastColumn()).getValues()[0];
-    var allCamps = wsCamps.getDataRange().getValues();
-    var campRow = -1;
-    var camp = null;
-    for (var r = 1; r < allCamps.length; r++) {
-      if ((allCamps[r][hdrs.indexOf('Nome')]||'').toLowerCase() === (data.campeonato||'').toLowerCase()) {
-        camp = {};
-        hdrs.forEach(function(h,i) { camp[h] = allCamps[r][i]; });
-        if (camp['Senha'] !== data.senha) return _json({ erro: 'Senha incorreta' });
-        campRow = r + 1;
-        break;
+  // Revelar resultados (admin)
+  if (d.action === 'revelar') {
+    if (!isAdmin_(d.telefone)) return json_({ erro: 'Não autorizado' });
+    var wsCamps = aba_(ABA_CAMPS, HDR_CAMPS);
+    var wsVotos = aba_(ABA_VOTOS, HDR_VOTOS);
+    var allC = wsCamps.getDataRange().getValues();
+    var hC   = allC[0];
+    var nome = (d.campeonato||'').toLowerCase();
+    var camp=null, campRow=-1;
+    for (var r=1;r<allC.length;r++) {
+      if ((allC[r][hC.indexOf('Nome')]||'').toLowerCase()===nome) {
+        camp={}; hC.forEach(function(k,i){camp[k]=allC[r][i];}); campRow=r+1; break;
       }
     }
-    if (!camp) return _json({ erro: 'Campeonato não encontrado' });
+    if (!camp) return json_({ erro: 'Campeonato não encontrado' });
 
-    // Resposta correta
-    var respostas = [];
-    for (var i = 1; i <= 15; i++) { if (camp['Bebida '+i]) respostas.push((camp['Bebida '+i]||'').toLowerCase()); }
+    var respostas=[];
+    for (var i=1;i<=15;i++) if(camp['Bebida '+i]) respostas.push((camp['Bebida '+i]||'').toLowerCase().trim());
 
-    // Calcular acertos para cada participante
-    var allVotos = wsVotos.getDataRange().getValues();
-    var votosHdrs = allVotos[0];
-    for (var r = 1; r < allVotos.length; r++) {
-      var campNomeVoto = (allVotos[r][votosHdrs.indexOf('Campeonato')]||'').toLowerCase();
-      if (campNomeVoto !== (data.campeonato||'').toLowerCase()) continue;
-      var acertos = 0;
-      for (var i = 1; i <= respostas.length; i++) {
-        var voto = (allVotos[r][votosHdrs.indexOf('Voto '+i)]||'').toLowerCase().trim();
-        if (voto && voto === respostas[i-1].trim()) acertos++;
+    // Calcular acertos
+    var allV = wsVotos.getDataRange().getValues();
+    var hV   = allV[0];
+    for (var r=1;r<allV.length;r++) {
+      if ((allV[r][hV.indexOf('Campeonato')]||'').toLowerCase()!==nome) continue;
+      var acertos=0;
+      for (var i=0;i<respostas.length;i++) {
+        var voto = (allV[r][hV.indexOf('Voto '+(i+1))]||'').toLowerCase().trim();
+        if (voto && voto===respostas[i]) acertos++;
       }
-      wsVotos.getRange(r+1, votosHdrs.indexOf('Acertos')+1).setValue(acertos);
+      wsVotos.getRange(r+1, hV.indexOf('Acertos')+1).setValue(acertos);
     }
-
-    // Marcar como revelado
-    wsCamps.getRange(campRow, hdrs.indexOf('Revelado')+1).setValue('SIM');
-
-    return _json({ ok: true, respostas: respostas });
+    wsCamps.getRange(campRow, hC.indexOf('Revelado')+1).setValue('SIM');
+    return json_({ ok:true });
   }
 
-  // Encerrar campeonato
-  if (action === 'encerrar') {
-    var wsCamps = _aba(ABA_CAMPS, HDR_CAMPS);
-    var hdrs = wsCamps.getRange(1, 1, 1, wsCamps.getLastColumn()).getValues()[0];
-    var allCamps = wsCamps.getDataRange().getValues();
-    for (var r = 1; r < allCamps.length; r++) {
-      var c = {};
-      hdrs.forEach(function(h,i) { c[h] = allCamps[r][i]; });
-      if ((c['Nome']||'').toLowerCase() === (data.campeonato||'').toLowerCase()) {
-        if (c['Senha'] !== data.senha) return _json({ erro: 'Senha incorreta' });
-        wsCamps.getRange(r+1, hdrs.indexOf('Status')+1).setValue('encerrado');
-        return _json({ ok: true });
+  // Encerrar campeonato (admin)
+  if (d.action === 'encerrar') {
+    if (!isAdmin_(d.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws   = aba_(ABA_CAMPS, HDR_CAMPS);
+    var allC = ws.getDataRange().getValues();
+    var hC   = allC[0];
+    var nome = (d.campeonato||'').toLowerCase();
+    for (var r=1;r<allC.length;r++) {
+      if ((allC[r][hC.indexOf('Nome')]||'').toLowerCase()===nome) {
+        ws.getRange(r+1, hC.indexOf('Status')+1).setValue('encerrado');
+        return json_({ ok:true });
       }
     }
-    return _json({ erro: 'Campeonato não encontrado' });
+    return json_({ erro: 'Não encontrado' });
   }
 
-  return _json({ erro: 'Ação desconhecida: ' + action });
+  return json_({ erro: 'Ação desconhecida' });
 }
