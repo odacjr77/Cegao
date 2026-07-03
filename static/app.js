@@ -39,11 +39,15 @@ let _pollLiberadas = null;
 
 // ── Navegação ─────────────────────────────────────────────────────────────────
 function showPage(id) {
-  console.log('showPage:', id);
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
   const el = document.getElementById(id);
-  console.log('elemento p2:', el);
-  if (el) el.classList.add('active');
+  if (el) {
+    el.classList.add('active');
+    el.style.display = 'block';
+  }
   window.scrollTo(0, 0);
 }
 
@@ -78,25 +82,20 @@ function escHtml(s) {
 
 // ── P1: Entrada ───────────────────────────────────────────────────────────────
 async function entrar() {
-  console.log('entrar() chamado');
   const nome = document.getElementById('ent-nome').value.trim();
   const tel  = document.getElementById('ent-tel').value.trim();
   if (!nome) { toast('Informe seu nome', 'err'); return; }
-  console.log('nome:', nome, '| tel:', tel);
 
   st.nome = nome;
   st.tel  = tel;
 
-  console.log('1 - antes de atualizar DOM');
   document.getElementById('topbar-user').innerHTML = `Olá, <strong>${escHtml(nome)}</strong>`;
   document.getElementById('p2-list').innerHTML = `
     <div class="p2-empty">
       <div class="p2-empty-icon">⏳</div>
       Carregando campeonatos...
     </div>`;
-  console.log('2 - antes de showPage');
   showPage('p2');
-  console.log('3 - showPage chamado');
 
   // Carrega dados em segundo plano
   try {
