@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="static/style.css" />
 </head>
 <body>
 
@@ -91,26 +91,18 @@
       <div class="topbar-camp" id="topbar-camp"></div>
     </header>
 
-    <div class="p3-inner">
-      <p class="p3-instrucao">Para cada bebida que você provou, escreva o nome que acha que é:</p>
+    <div class="p3-inner" id="p3-inner">
+      <p class="p3-instrucao">Para cada bebida servida, escolha qual você acha que é. Pode trocar quando quiser — cada escolha é salva na hora.</p>
       <div id="p3-campos" class="p3-campos"></div>
-      <button class="p3-btn-enviar" id="btn-enviar" onclick="enviarTodos()">
-        Enviar votos
+      <button class="p3-btn-enviar" id="btn-enviar" onclick="checarResultados()">
+        Ver resultados
       </button>
-    </div>
-
-    <!-- Tela de aguardo (após envio) -->
-    <div id="p3-aguardo" class="p3-aguardo hidden">
-      <div class="agu-emoji">🎭</div>
-      <h3 class="agu-titulo">Votos registrados!</h3>
-      <p class="agu-sub">Aguarde o administrador<br>revelar os resultados.</p>
-      <button class="agu-btn" onclick="checarResultados()">Verificar resultados</button>
     </div>
 
     <!-- Tela de resultados -->
     <div id="p3-resultado" class="p3-resultado hidden">
       <div class="res-header">
-        <h3 class="res-titulo">Resultados 🏆</h3>
+        <h3 class="res-titulo" id="res-titulo">Resultados 🏆</h3>
       </div>
       <div id="res-gab" class="res-gab"></div>
       <div id="res-rank" class="res-rank"></div>
@@ -121,6 +113,6 @@
   <!-- TOAST -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/static/app.js"></script>
+  <script src="static/app.js"></script>
 </body>
 </html>

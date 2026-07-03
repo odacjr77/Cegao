@@ -1,9 +1,36 @@
+// ── Configuração ──────────────────────────────────────────────────────────────
+const AS_URL = 'https://script.google.com/macros/s/AKfycbxoTMAQZCsOhJb4pFPdkTT2Z1PcmbUro_Rc5iYWkjPbc7uKDVXYi7LjI-1xrISrJsIO/exec';
+
+// GET → Apps Script (leitura)
+async function asGet(params) {
+  const url = AS_URL + '?' + new URLSearchParams(params).toString();
+  const res  = await fetch(url, { redirect: 'follow' });
+  const data = await res.json();
+  if (data && data.erro) throw new Error(data.erro);
+  return data;
+}
+
+// POST → Apps Script (escrita).
+// Usa Content-Type: text/plain para evitar preflight CORS;
+// o Apps Script lê via e.postData.contents e faz JSON.parse normalmente.
+async function asPost(body) {
+  const res  = await fetch(AS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(body),
+    redirect: 'follow',
+  });
+  const data = await res.json();
+  if (data && data.erro) throw new Error(data.erro);
+  return data;
+}
+
 // ── Estado ────────────────────────────────────────────────────────────────────
 const st = {
   nome: '', tel: '', isAdmin: false,
+  camps: [],
   campNome: '', campQtd: 0, campBebidas: [], campRevelado: false,
-  votos: [],        // string[], indexados por posição (0-based)
-  enviado: false,
+  votos: [],
 };
 
 // ── Navegação ─────────────────────────────────────────────────────────────────
@@ -15,16 +42,13 @@ function showPage(id) {
 
 function voltarP1() {
   Object.assign(st, {
-    nome:'', tel:'', isAdmin:false,
-    campNome:'', campQtd:0, campBebidas:[], campRevelado:false,
-    votos:[], enviado:false,
+    nome: '', tel: '', isAdmin: false, camps: [],
+    campNome: '', campQtd: 0, campBebidas: [], campRevelado: false, votos: [],
   });
   showPage('p1');
 }
 
-function voltarP2() {
-  showPage('p2');
-}
+function voltarP2() { showPage('p2'); }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 let _tt;
@@ -36,14 +60,8 @@ function toast(msg, tipo = '') {
   _tt = setTimeout(() => el.classList.add('hidden'), 3000);
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
-async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch('/api' + path, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Erro desconhecido');
-  return data;
+function escHtml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 // ── P1: Entrada ───────────────────────────────────────────────────────────────
@@ -53,33 +71,38 @@ async function entrar() {
   if (!nome) { toast('Informe seu nome', 'err'); return; }
 
   const btn = document.querySelector('.p1-btn');
-  btn.textContent = '...';
-  btn.disabled = true;
+  btn.innerHTML = '<span>Entrando...</span>';
+  btn.disabled  = true;
 
   try {
-    const r = await api('POST', '/entrar', { nome, telefone: tel });
+    const [adminR, camps] = await Promise.all([
+      tel ? asGet({ action: 'verificar', telefone: tel }) : Promise.resolve({ admin: false }),
+      asGet({ action: 'campeonatos' }),
+    ]);
+
     st.nome    = nome;
     st.tel     = tel;
-    st.isAdmin = r.admin;
+    st.isAdmin = adminR.admin || false;
 
     document.getElementById('topbar-user').innerHTML =
-      `Olá, <strong>${nome}</strong>${r.admin ? ' &nbsp;·&nbsp; 🎯 Admin' : ''}`;
+      `Olá, <strong>${escHtml(nome)}</strong>${st.isAdmin ? ' &nbsp;·&nbsp; 🎯 Admin' : ''}`;
 
-    renderP2(r.campeonatos);
+    renderP2(camps);
     showPage('p2');
   } catch(e) {
-    toast(e.message, 'err');
+    toast(e.message || 'Erro de conexão', 'err');
   } finally {
     btn.innerHTML = '<span>Entrar</span><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>';
     btn.disabled = false;
   }
 }
 
-// ── P2: Lista de campeonatos ───────────────────────────────────────────────────
+// ── P2: Lista de campeonatos ──────────────────────────────────────────────────
 function renderP2(camps) {
-  const el = document.getElementById('p2-list');
+  st.camps = camps || [];
+  const el  = document.getElementById('p2-list');
 
-  if (!camps || camps.length === 0) {
+  if (st.camps.length === 0) {
     el.innerHTML = `
       <div class="p2-empty">
         <div class="p2-empty-icon">🍶</div>
@@ -88,14 +111,13 @@ function renderP2(camps) {
     return;
   }
 
-  el.innerHTML = camps.map(c => {
+  el.innerHTML = st.camps.map((c, i) => {
     const status = c.revelado ? 'Ver resultado 🏆' : `${c.qtd_bebidas} bebida${c.qtd_bebidas !== 1 ? 's' : ''}`;
     const icon   = c.revelado ? '🏆' : '🫙';
-    return `<div class="camp-card ${c.revelado ? 'camp-card-done' : ''}"
-                 onclick='abrirCamp(${JSON.stringify(c)})'>
+    return `<div class="camp-card ${c.revelado ? 'camp-card-done' : ''}" onclick="abrirCamp(${i})">
       <div class="camp-icon">${icon}</div>
       <div class="camp-info">
-        <div class="camp-nome">${c.nome}</div>
+        <div class="camp-nome">${escHtml(c.nome)}</div>
         <div class="camp-meta">${status}</div>
       </div>
       <div class="camp-arrow">
@@ -106,38 +128,30 @@ function renderP2(camps) {
 }
 
 // ── P3: Votação ───────────────────────────────────────────────────────────────
-async function abrirCamp(camp) {
+async function abrirCamp(i) {
+  const camp = st.camps[i];
+  if (!camp) return;
+
   st.campNome     = camp.nome;
   st.campQtd      = camp.qtd_bebidas;
   st.campBebidas  = camp.bebidas || [];
   st.campRevelado = camp.revelado;
   st.votos        = new Array(camp.qtd_bebidas).fill('');
-  st.enviado      = false;
 
   document.getElementById('topbar-camp').textContent = camp.nome;
 
-  // Esconder estados alternativos
-  document.getElementById('p3-inner').classList.remove('hidden');
-  document.getElementById('p3-aguardo').classList.add('hidden');
-  document.getElementById('p3-resultado').classList.add('hidden');
-
-  // Carregar votos existentes
   try {
-    const todos = await api('GET', `/votos/${encodeURIComponent(camp.nome)}`);
+    const todos = await asGet({ action: 'votos', campeonato: camp.nome });
     const meu   = todos.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase());
     if (meu) {
-      for (let i = 0; i < camp.qtd_bebidas; i++) {
-        st.votos[i] = meu['Voto ' + (i + 1)] || '';
+      for (let idx = 0; idx < camp.qtd_bebidas; idx++) {
+        st.votos[idx] = meu['Voto ' + (idx + 1)] || '';
       }
-      if (st.votos.some(v => v)) st.enviado = true;
     }
   } catch(e) { /* segue sem pré-preencher */ }
 
-  // Exibir estado correto
   if (camp.revelado) {
     await mostrarResultados();
-  } else if (st.enviado) {
-    mostrarAguardo();
   } else {
     renderCamposVoto();
   }
@@ -147,108 +161,50 @@ async function abrirCamp(camp) {
 
 function renderCamposVoto() {
   document.getElementById('p3-inner').classList.remove('hidden');
-  document.getElementById('p3-aguardo').classList.add('hidden');
   document.getElementById('p3-resultado').classList.add('hidden');
 
-  const el = document.getElementById('p3-campos');
+  const opcoes = [...st.campBebidas].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const el     = document.getElementById('p3-campos');
+
   el.innerHTML = Array.from({ length: st.campQtd }, (_, i) => {
-    const label = String.fromCharCode(65 + i); // A, B, C...
-    return `<div class="p3-campo${st.votos[i] ? ' salvo' : ''}" id="campo-${i}">
-      <div class="p3-num">${label}</div>
+    const letra  = String.fromCharCode(65 + i); // A, B, C...
+    const atual  = st.votos[i] || '';
+    const opts   = ['<option value="">— escolha —</option>']
+      .concat(opcoes.map(b => `<option value="${escHtml(b)}"${b === atual ? ' selected' : ''}>${escHtml(b)}</option>`));
+    return `<div class="p3-campo${atual ? ' salvo' : ''}" id="campo-${i}">
+      <div class="p3-num">${letra}</div>
       <div class="p3-campo-inner">
-        <div class="p3-campo-label">Bebida ${label} — o que você acha?</div>
-        <input type="text" placeholder="Digite o nome..."
-               value="${escHtml(st.votos[i])}"
-               oninput="onVotoInput(${i}, this.value)"
-               onblur="salvarVoto(${i})"
-               autocomplete="off" />
+        <div class="p3-campo-label">Bebida ${letra} — qual você acha que é?</div>
+        <select onchange="salvarVoto(${i}, this.value)">${opts.join('')}</select>
       </div>
       <span class="p3-check">✓</span>
     </div>`;
   }).join('');
 }
 
-function escHtml(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
-
-function onVotoInput(i, val) {
-  st.votos[i] = val;
-  const campo = document.getElementById('campo-' + i);
-  if (val.trim()) {
-    campo.classList.add('salvo');
-  } else {
-    campo.classList.remove('salvo');
-  }
-}
-
-let _saveTimers = {};
-async function salvarVoto(i) {
-  const bebida = (st.votos[i] || '').trim();
-  clearTimeout(_saveTimers[i]);
-  if (!bebida) return;
+async function salvarVoto(i, bebida) {
+  st.votos[i] = bebida;
+  document.getElementById('campo-' + i).classList.toggle('salvo', !!bebida);
 
   try {
-    await api('POST', '/votos', {
+    await asPost({
+      action:     'votar',
       campeonato: st.campNome,
-      nome: st.nome,
-      telefone: st.tel,
-      indice: i + 1,
+      nome:       st.nome,
+      telefone:   st.tel,
+      indice:     i + 1,
       bebida,
     });
+    toast('Voto salvo ✓', 'ok');
   } catch(e) {
-    toast('Erro ao salvar voto ' + (i+1), 'err');
+    toast('Erro ao salvar voto ' + String.fromCharCode(65 + i), 'err');
   }
 }
 
-async function enviarTodos() {
-  const preenchidos = st.votos.filter(v => v.trim()).length;
-  if (preenchidos === 0) {
-    toast('Preencha ao menos um palpite', 'err');
-    return;
-  }
-
-  const btn = document.getElementById('btn-enviar');
-  btn.textContent = 'Enviando...';
-  btn.disabled = true;
-
-  let ok = 0;
-  for (let i = 0; i < st.campQtd; i++) {
-    const bebida = (st.votos[i] || '').trim();
-    if (!bebida) continue;
-    try {
-      await api('POST', '/votos', {
-        campeonato: st.campNome,
-        nome: st.nome,
-        telefone: st.tel,
-        indice: i + 1,
-        bebida,
-      });
-      ok++;
-    } catch(e) { /* tenta todos */ }
-  }
-
-  btn.textContent = 'Enviar votos';
-  btn.disabled = false;
-
-  if (ok > 0) {
-    st.enviado = true;
-    toast(`${ok} voto${ok !== 1 ? 's' : ''} registrado${ok !== 1 ? 's' : ''}!`, 'ok');
-    mostrarAguardo();
-  } else {
-    toast('Erro ao registrar votos', 'err');
-  }
-}
-
-function mostrarAguardo() {
-  document.getElementById('p3-inner').classList.add('hidden');
-  document.getElementById('p3-aguardo').classList.remove('hidden');
-  document.getElementById('p3-resultado').classList.add('hidden');
-}
-
+// Botão "Ver resultados"
 async function checarResultados() {
   try {
-    const data = await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`);
+    const data = await asGet({ action: 'resultados', campeonato: st.campNome });
     renderResultados(data);
   } catch(e) {
     toast('Resultado ainda não disponível', 'err');
@@ -257,56 +213,63 @@ async function checarResultados() {
 
 async function mostrarResultados() {
   try {
-    const data = await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`);
+    const data = await asGet({ action: 'resultados', campeonato: st.campNome });
     renderResultados(data);
   } catch(e) {
-    mostrarAguardo();
+    renderCamposVoto();
   }
 }
 
 function renderResultados(data) {
   document.getElementById('p3-inner').classList.add('hidden');
-  document.getElementById('p3-aguardo').classList.add('hidden');
   document.getElementById('p3-resultado').classList.remove('hidden');
+  document.getElementById('res-titulo').textContent = st.campNome;
 
-  // Gabarito
   const gabEl = document.getElementById('res-gab');
   gabEl.innerHTML = `
     <div class="res-gab-titulo">Gabarito</div>
-    ${data.bebidas.map((b, i) => {
-      const letra = String.fromCharCode(65 + i);
-      return `<div class="res-gab-row">
-        <span class="res-gab-num">${letra}</span>
-        <span class="res-gab-nome">${b}</span>
-      </div>`;
-    }).join('')}
-  `;
+    ${data.bebidas.map((b, i) => `
+      <div class="res-gab-row">
+        <span class="res-gab-num">${String.fromCharCode(65 + i)}</span>
+        <span class="res-gab-nome">${escHtml(b)}</span>
+      </div>`).join('')}`;
 
-  // Ranking
   const total  = data.bebidas.length;
   const sorted = [...data.votos].sort((a, b) => (Number(b['Acertos'])||0) - (Number(a['Acertos'])||0));
   const medals = ['🥇','🥈','🥉'];
 
-  const rankEl = document.getElementById('res-rank');
-  rankEl.innerHTML = `
+  document.getElementById('res-rank').innerHTML = `
     <div class="res-rank-titulo">Ranking de acertos</div>
     ${sorted.map((v, i) => {
       const pts   = v['Acertos'] !== '' ? Number(v['Acertos']) : null;
       const label = pts !== null ? pts : '—';
       const pct   = pts !== null ? `<small>/${total}</small>` : '';
-      const medal = medals[i] || `#${i+1}`;
-      return `<div class="res-row ${i===0?'primeiro':''}">
+      const medal = medals[i] || `#${i + 1}`;
+      return `<div class="res-row ${i === 0 ? 'primeiro' : ''}">
         <span class="res-pos">${medal}</span>
-        <span class="res-nome">${v['Nome']}</span>
+        <span class="res-nome">${escHtml(v['Nome'])}</span>
         <span class="res-pts">${label}${pct}</span>
       </div>`;
-    }).join('')}
-  `;
+    }).join('')}`;
 }
 
-// ── Enter para submeter P1 ────────────────────────────────────────────────────
+// ── Admin: criar campeonato ───────────────────────────────────────────────────
+// (chamado via fluxo admin — a ser definido)
+async function criarCampeonato(nome, bebidas) {
+  return asPost({ action: 'criar_campeonato', telefone: st.tel, nome, bebidas });
+}
+
+async function revelarResultados(campeonato) {
+  return asPost({ action: 'revelar', telefone: st.tel, campeonato });
+}
+
+async function encerrarCampeonato(campeonato) {
+  return asPost({ action: 'encerrar', telefone: st.tel, campeonato });
+}
+
+// ── Enter para submeter no P1 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  ['ent-nome','ent-tel'].forEach(id => {
+  ['ent-nome', 'ent-tel'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
   });
