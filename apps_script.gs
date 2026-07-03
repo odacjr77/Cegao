@@ -13,7 +13,7 @@ var HDR_ADM   = ['Nome', 'Telefone'];
 var HDR_CAMPS = ['Nome', 'Bebida 1','Bebida 2','Bebida 3','Bebida 4','Bebida 5',
                  'Bebida 6','Bebida 7','Bebida 8','Bebida 9','Bebida 10',
                  'Bebida 11','Bebida 12','Bebida 13','Bebida 14','Bebida 15',
-                 'Status', 'Revelado'];
+                 'Status', 'Revelado', 'Liberadas'];
 var HDR_VOTOS = ['Nome','Telefone','Campeonato',
                  'Voto 1','Voto 2','Voto 3','Voto 4','Voto 5',
                  'Voto 6','Voto 7','Voto 8','Voto 9','Voto 10',
@@ -92,8 +92,40 @@ function doGet(e) {
     return json_(camps.map(function(c){
       var bebidas = [];
       for (var i=1;i<=15;i++) if(c['Bebida '+i]) bebidas.push(c['Bebida '+i]);
-      return { nome: c['Nome'], qtd_bebidas: bebidas.length, bebidas: bebidas, revelado: c['Revelado']==='SIM' };
+      var liberadas = parseInt(c['Liberadas'], 10) || 0;
+      if (liberadas > bebidas.length) liberadas = bebidas.length;
+      return { nome: c['Nome'], qtd_bebidas: bebidas.length, liberadas: liberadas, bebidas: bebidas, revelado: c['Revelado']==='SIM' };
     }));
+  }
+
+  // Listar TODOS os campeonatos p/ o admin gerenciar (inclui encerrados)
+  if (p.action === 'admin_campeonatos') {
+    if (!isAdmin_(p.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    return json_(rows_(ws).map(function(c){
+      var bebidas = [];
+      for (var i=1;i<=15;i++) if(c['Bebida '+i]) bebidas.push(c['Bebida '+i]);
+      return {
+        nome: c['Nome'], qtd_bebidas: bebidas.length,
+        liberadas: parseInt(c['Liberadas'], 10) || 0,
+        revelado: c['Revelado']==='SIM', status: c['Status']
+      };
+    }));
+  }
+
+  // Detalhe de um campeonato p/ a tela de edição do admin
+  if (p.action === 'admin_campeonato') {
+    if (!isAdmin_(p.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    var camp = rows_(ws).find(function(c){ return (c['Nome']||'').toLowerCase()===(p.campeonato||'').toLowerCase(); });
+    if (!camp) return json_({ erro: 'Campeonato não encontrado' });
+    var bebidas = [];
+    for (var i=1;i<=15;i++) bebidas.push(camp['Bebida '+i] || '');
+    return json_({
+      nome: camp['Nome'], bebidas: bebidas,
+      liberadas: parseInt(camp['Liberadas'], 10) || 0,
+      revelado: camp['Revelado']==='SIM', status: camp['Status']
+    });
   }
 
   // Votos de um campeonato
@@ -141,11 +173,64 @@ function doPost(e) {
     var ws = aba_(ABA_CAMPS, HDR_CAMPS);
     var jaExiste = rows_(ws).some(function(c){ return (c['Nome']||'').toLowerCase()===(d.nome||'').toLowerCase(); });
     if (jaExiste) return json_({ erro: 'Já existe um campeonato com este nome' });
-    var row = [d.nome];
-    for (var i=1;i<=15;i++) row.push((d.bebidas && d.bebidas[i-1]) ? d.bebidas[i-1] : '');
-    row.push('ativo','NAO');
+    var hdrs = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+    var row = hdrs.map(function(h) {
+      if (h === 'Nome') return d.nome;
+      var m = /^Bebida (\d+)$/.exec(h);
+      if (m) { var idx = parseInt(m[1], 10); return (d.bebidas && d.bebidas[idx - 1]) ? d.bebidas[idx - 1] : ''; }
+      if (h === 'Status') return 'ativo';
+      if (h === 'Revelado') return 'NAO';
+      if (h === 'Liberadas') return 0;
+      return '';
+    });
     ws.appendRow(row);
     return json_({ ok: true, nome: d.nome });
+  }
+
+  // Editar a lista de bebidas de um campeonato existente (admin) — até 15
+  if (d.action === 'salvar_bebidas') {
+    if (!isAdmin_(d.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    var all  = ws.getDataRange().getValues();
+    var hdrs = all[0];
+    var colNome = hdrs.indexOf('Nome');
+    var nomeLow = (d.campeonato||'').toLowerCase();
+
+    for (var r=1; r<all.length; r++) {
+      if ((all[r][colNome]||'').toLowerCase() !== nomeLow) continue;
+      var bebidas = (d.bebidas || []).slice(0, 15);
+      for (var i=1; i<=15; i++) {
+        ws.getRange(r+1, hdrs.indexOf('Bebida ' + i) + 1).setValue(bebidas[i-1] || '');
+      }
+      // Se o admin removeu bebidas, não deixa "liberadas" além do que existe
+      var colLib = hdrs.indexOf('Liberadas');
+      var liberadasAtual = parseInt(all[r][colLib], 10) || 0;
+      if (liberadasAtual > bebidas.length) {
+        ws.getRange(r+1, colLib+1).setValue(bebidas.length);
+      }
+      return json_({ ok: true });
+    }
+    return json_({ erro: 'Campeonato não encontrado' });
+  }
+
+  // Executar campeonato: avisa quantas bebidas já foram servidas/liberadas (admin)
+  if (d.action === 'atualizar_liberadas') {
+    if (!isAdmin_(d.telefone)) return json_({ erro: 'Não autorizado' });
+    var ws = aba_(ABA_CAMPS, HDR_CAMPS);
+    var all  = ws.getDataRange().getValues();
+    var hdrs = all[0];
+    var colNome = hdrs.indexOf('Nome');
+    var nomeLow = (d.campeonato||'').toLowerCase();
+
+    for (var r=1; r<all.length; r++) {
+      if ((all[r][colNome]||'').toLowerCase() !== nomeLow) continue;
+      var total = 0;
+      for (var i=1;i<=15;i++) if (all[r][hdrs.indexOf('Bebida '+i)]) total++;
+      var liberadas = Math.max(0, Math.min(total, parseInt(d.liberadas, 10) || 0));
+      ws.getRange(r+1, hdrs.indexOf('Liberadas')+1).setValue(liberadas);
+      return json_({ ok: true, liberadas: liberadas });
+    }
+    return json_({ erro: 'Campeonato não encontrado' });
   }
 
   // Registrar voto (participante) — atualiza uma única bebida por vez,

@@ -29,9 +29,13 @@ async function asPost(body) {
 const st = {
   nome: '', tel: '', isAdmin: false,
   camps: [],
-  campNome: '', campQtd: 0, campBebidas: [], campRevelado: false,
+  campNome: '', campQtd: 0, campTotal: 0, campBebidas: [], campRevelado: false,
   votos: [],
+  adminCamps: [],
+  editCampNome: '', editBebidas: [], editLiberadas: 0,
 };
+
+let _pollLiberadas = null;
 
 // ── Navegação ─────────────────────────────────────────────────────────────────
 function showPage(id) {
@@ -41,14 +45,19 @@ function showPage(id) {
 }
 
 function voltarP1() {
+  clearInterval(_pollLiberadas);
   Object.assign(st, {
     nome: '', tel: '', isAdmin: false, camps: [],
-    campNome: '', campQtd: 0, campBebidas: [], campRevelado: false, votos: [],
+    campNome: '', campQtd: 0, campTotal: 0, campBebidas: [], campRevelado: false, votos: [],
+    adminCamps: [], editCampNome: '', editBebidas: [], editLiberadas: 0,
   });
   showPage('p1');
 }
 
-function voltarP2() { showPage('p2'); }
+function voltarP2() {
+  clearInterval(_pollLiberadas);
+  showPage('p2');
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 let _tt;
@@ -95,11 +104,11 @@ async function entrar() {
     st.isAdmin = adminR.admin || false;
 
     if (st.isAdmin) {
-      document.getElementById('topbar-user').innerHTML =
-        `Olá, <strong>${escHtml(nome)}</strong> &nbsp;·&nbsp; 🎯 Admin`;
+      document.getElementById('pa-menu-user').innerHTML = `Olá, <strong>${escHtml(nome)}</strong>`;
+      showPage('pa-menu');
+    } else {
+      renderP2(camps);
     }
-
-    renderP2(camps);
   } catch(e) {
     document.getElementById('p2-list').innerHTML = `
       <div class="p2-empty">
@@ -125,7 +134,7 @@ function renderP2(camps) {
   }
 
   el.innerHTML = st.camps.map((c, i) => {
-    const status = c.revelado ? 'Ver resultado 🏆' : `${c.qtd_bebidas} bebida${c.qtd_bebidas !== 1 ? 's' : ''}`;
+    const status = c.revelado ? 'Ver resultado 🏆' : `${c.liberadas || 0}/${c.qtd_bebidas} liberada${c.qtd_bebidas !== 1 ? 's' : ''}`;
     const icon   = c.revelado ? '🏆' : '🫙';
     return `<div class="camp-card ${c.revelado ? 'camp-card-done' : ''}" onclick="abrirCamp(${i})">
       <div class="camp-icon">${icon}</div>
@@ -142,11 +151,14 @@ function renderP2(camps) {
 
 // ── P3: Votação ───────────────────────────────────────────────────────────────
 async function abrirCamp(i) {
+  clearInterval(_pollLiberadas);
+
   const camp = st.camps[i];
   if (!camp) return;
 
   st.campNome     = camp.nome;
-  st.campQtd      = camp.qtd_bebidas;
+  st.campQtd      = camp.liberadas || 0;   // slots visíveis agora
+  st.campTotal    = camp.qtd_bebidas;      // total configurado pelo admin
   st.campBebidas  = camp.bebidas || [];
   st.campRevelado = camp.revelado;
   st.votos        = new Array(camp.qtd_bebidas).fill('');
@@ -167,17 +179,51 @@ async function abrirCamp(i) {
     await mostrarResultados();
   } else {
     renderCamposVoto();
+    _pollLiberadas = setInterval(verificarNovasBebidas, 7000);
   }
 
   showPage('p3');
+}
+
+// Verifica periodicamente se o admin liberou mais bebidas ou revelou o
+// resultado, e avisa o participante sem precisar recarregar a página.
+async function verificarNovasBebidas() {
+  try {
+    const camps = await asGet({ action: 'campeonatos' });
+    const atual = camps.find(c => c.nome === st.campNome);
+    if (!atual) return;
+
+    if (atual.revelado) {
+      clearInterval(_pollLiberadas);
+      st.campRevelado = true;
+      await mostrarResultados();
+      return;
+    }
+
+    const liberadas = atual.liberadas || 0;
+    if (liberadas > st.campQtd) {
+      st.campQtd     = liberadas;
+      st.campBebidas = atual.bebidas || [];
+      renderCamposVoto();
+      toast(`🍾 Nova bebida liberada! Já dá pra votar na Bebida ${liberadas}.`, 'ok');
+    }
+  } catch(e) { /* silencioso — tenta de novo no próximo ciclo */ }
 }
 
 function renderCamposVoto() {
   document.getElementById('p3-inner').classList.remove('hidden');
   document.getElementById('p3-resultado').classList.add('hidden');
 
+  const el = document.getElementById('p3-campos');
+  if (st.campQtd === 0) {
+    el.innerHTML = `<div class="p2-empty">
+      <div class="p2-empty-icon">⏳</div>
+      Aguardando o administrador liberar a primeira bebida...
+    </div>`;
+    return;
+  }
+
   const opcoes = [...st.campBebidas].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const el     = document.getElementById('p3-campos');
 
   el.innerHTML = Array.from({ length: st.campQtd }, (_, i) => {
     const letra  = String.fromCharCode(65 + i); // A, B, C...
@@ -218,6 +264,7 @@ async function salvarVoto(i, bebida) {
 async function checarResultados() {
   try {
     const data = await asGet({ action: 'resultados', campeonato: st.campNome });
+    clearInterval(_pollLiberadas);
     renderResultados(data);
   } catch(e) {
     toast('Resultado ainda não disponível', 'err');
@@ -227,6 +274,7 @@ async function checarResultados() {
 async function mostrarResultados() {
   try {
     const data = await asGet({ action: 'resultados', campeonato: st.campNome });
+    clearInterval(_pollLiberadas);
     renderResultados(data);
   } catch(e) {
     renderCamposVoto();
@@ -266,8 +314,7 @@ function renderResultados(data) {
     }).join('')}`;
 }
 
-// ── Admin: criar campeonato ───────────────────────────────────────────────────
-// (chamado via fluxo admin — a ser definido)
+// ── Admin: chamadas ao Apps Script ────────────────────────────────────────────
 async function criarCampeonato(nome, bebidas) {
   return asPost({ action: 'criar_campeonato', telefone: st.tel, nome, bebidas });
 }
@@ -278,6 +325,165 @@ async function revelarResultados(campeonato) {
 
 async function encerrarCampeonato(campeonato) {
   return asPost({ action: 'encerrar', telefone: st.tel, campeonato });
+}
+
+async function salvarBebidasApi(campeonato, bebidas) {
+  return asPost({ action: 'salvar_bebidas', telefone: st.tel, campeonato, bebidas });
+}
+
+async function atualizarLiberadasApi(campeonato, liberadas) {
+  return asPost({ action: 'atualizar_liberadas', telefone: st.tel, campeonato, liberadas });
+}
+
+// ── Admin: menu ───────────────────────────────────────────────────────────────
+async function abrirGerenciarCampeonatos() {
+  showPage('pa-camps');
+  document.getElementById('pa-camps-list').innerHTML = `
+    <div class="p2-empty"><div class="p2-empty-icon">⏳</div>Carregando...</div>`;
+  try {
+    const camps = await asGet({ action: 'admin_campeonatos', telefone: st.tel });
+    st.adminCamps = camps;
+    renderAdminCampsList(camps);
+  } catch(e) {
+    document.getElementById('pa-camps-list').innerHTML = `
+      <div class="p2-empty"><div class="p2-empty-icon">⚠️</div>${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderAdminCampsList(camps) {
+  const el = document.getElementById('pa-camps-list');
+  if (!camps || camps.length === 0) {
+    el.innerHTML = `
+      <div class="p2-empty">
+        <div class="p2-empty-icon">🗂️</div>
+        Nenhum campeonato ainda.<br>Crie o primeiro acima.
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = camps.map((c, i) => {
+    const encerrado = c.status === 'encerrado';
+    const statusTxt = encerrado ? 'Encerrado' : (c.revelado ? 'Revelado 🏆' : `${c.liberadas}/${c.qtd_bebidas} liberadas`);
+    const icon      = encerrado ? '🔒' : (c.revelado ? '🏆' : '🍾');
+    return `<div class="camp-card" onclick="abrirEditarCampeonato(${i})">
+      <div class="camp-icon">${icon}</div>
+      <div class="camp-info">
+        <div class="camp-nome">${escHtml(c.nome)}</div>
+        <div class="camp-meta">${statusTxt}</div>
+      </div>
+      <div class="camp-arrow">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function voltarGerenciarCampeonatos() {
+  abrirGerenciarCampeonatos();
+}
+
+// ── Admin: criar campeonato ───────────────────────────────────────────────────
+function abrirNovoCampeonato() {
+  document.getElementById('pa-novo-nome').value = '';
+  showPage('pa-novo');
+}
+
+async function criarCampeonatoAdmin() {
+  const nome = document.getElementById('pa-novo-nome').value.trim();
+  if (!nome) { toast('Informe o nome do campeonato', 'err'); return; }
+  try {
+    await criarCampeonato(nome, []);
+    toast('Campeonato criado!', 'ok');
+    await abrirGerenciarCampeonatos();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Admin: editar / executar campeonato ───────────────────────────────────────
+async function abrirEditarCampeonato(i) {
+  const camp = st.adminCamps[i];
+  if (!camp) return;
+
+  st.editCampNome = camp.nome;
+  document.getElementById('pa-editar-titulo').textContent = camp.nome;
+  showPage('pa-editar');
+
+  try {
+    const d = await asGet({ action: 'admin_campeonato', telefone: st.tel, campeonato: camp.nome });
+    st.editBebidas   = d.bebidas || [];
+    st.editLiberadas = d.liberadas || 0;
+    renderBebidasEdit();
+    atualizarLiberadasUI();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// Mostra os slots já preenchidos + sempre um campo vazio a mais (até o máx. de 15)
+function renderBebidasEdit() {
+  const bebidas = st.editBebidas.slice(0, 15);
+  while (bebidas.length < 15 && (bebidas.length === 0 || bebidas[bebidas.length - 1])) {
+    bebidas.push('');
+  }
+  st.editBebidas = bebidas;
+
+  const el = document.getElementById('pa-bebidas-campos');
+  el.innerHTML = bebidas.map((b, i) => `
+    <div class="pa-bebida-campo">
+      <span class="pa-bebida-num">${i + 1}</span>
+      <input type="text" placeholder="Nome da bebida" value="${escHtml(b)}"
+             oninput="st.editBebidas[${i}] = this.value" />
+    </div>`).join('');
+}
+
+async function salvarBebidas() {
+  const bebidas = st.editBebidas.map(b => (b || '').trim()).filter(Boolean).slice(0, 15);
+  try {
+    await salvarBebidasApi(st.editCampNome, bebidas);
+    toast('Bebidas salvas ✓', 'ok');
+    const d = await asGet({ action: 'admin_campeonato', telefone: st.tel, campeonato: st.editCampNome });
+    st.editBebidas   = d.bebidas || [];
+    st.editLiberadas = d.liberadas || 0;
+    renderBebidasEdit();
+    atualizarLiberadasUI();
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Admin: executar campeonato (liberar bebidas) ──────────────────────────────
+function atualizarLiberadasUI() {
+  const total = st.editBebidas.filter(b => b && b.trim()).length;
+  document.getElementById('pa-liberadas-total').textContent = total;
+  document.getElementById('pa-liberadas-atual').textContent = st.editLiberadas;
+}
+
+function mudarLiberadas(delta) {
+  const total = st.editBebidas.filter(b => b && b.trim()).length;
+  st.editLiberadas = Math.max(0, Math.min(total, st.editLiberadas + delta));
+  document.getElementById('pa-liberadas-atual').textContent = st.editLiberadas;
+}
+
+async function salvarLiberadas() {
+  try {
+    const r = await atualizarLiberadasApi(st.editCampNome, st.editLiberadas);
+    st.editLiberadas = r.liberadas;
+    atualizarLiberadasUI();
+    toast(`Liberado até a bebida ${r.liberadas} — participantes já podem votar!`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+// ── Admin: revelar / encerrar ──────────────────────────────────────────────────
+async function revelarAdmin() {
+  if (!confirm('Revelar resultados agora? Os acertos serão calculados e todos poderão ver.')) return;
+  try {
+    await revelarResultados(st.editCampNome);
+    toast('Revelado! 🎭', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function encerrarAdmin() {
+  if (!confirm('Encerrar campeonato? Nenhum novo voto poderá ser registrado.')) return;
+  try {
+    await encerrarCampeonato(st.editCampNome);
+    toast('Encerrado.', 'ok');
+    await abrirGerenciarCampeonatos();
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 // ── Enter para submeter no P1 ─────────────────────────────────────────────────

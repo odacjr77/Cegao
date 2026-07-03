@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="static/style.css" />
+  <link rel="stylesheet" href="static/style.css?v=6" />
 </head>
 <body>
 
@@ -110,9 +110,124 @@
 
   </div>
 
+  <!-- ══════════════════════════════════════════
+       PA-MENU — MENU DO ADMINISTRADOR
+  ══════════════════════════════════════════ -->
+  <div id="pa-menu" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="voltarP1()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-user" id="pa-menu-user"></div>
+    </header>
+
+    <div class="p2-hero">
+      <p class="p2-eyebrow">Painel</p>
+      <h2 class="p2-title">Menu do<br>administrador</h2>
+    </div>
+
+    <div class="p2-list">
+      <div class="camp-card" onclick="abrirGerenciarCampeonatos()">
+        <div class="camp-icon">🗂️</div>
+        <div class="camp-info">
+          <div class="camp-nome">Gerenciar campeonatos</div>
+          <div class="camp-meta">Criar, editar bebidas e liberar rodadas</div>
+        </div>
+        <div class="camp-arrow">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PA-CAMPS — GERENCIAR CAMPEONATOS (lista)
+  ══════════════════════════════════════════ -->
+  <div id="pa-camps" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="showPage('pa-menu')">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-camp">Gerenciar campeonatos</div>
+    </header>
+
+    <div class="pa-toolbar">
+      <button class="p3-btn-enviar" onclick="abrirNovoCampeonato()">+ Novo campeonato</button>
+    </div>
+
+    <div class="p2-list" id="pa-camps-list"></div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PA-NOVO — CRIAR CAMPEONATO
+  ══════════════════════════════════════════ -->
+  <div id="pa-novo" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="showPage('pa-camps')">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-camp">Novo campeonato</div>
+    </header>
+
+    <div class="p3-inner">
+      <div class="p1-input-wrap" style="margin-bottom:18px">
+        <label class="p1-label">Nome do campeonato</label>
+        <input id="pa-novo-nome" class="p1-input" type="text" placeholder="Ex: Cerveja às Cegas" maxlength="60" />
+      </div>
+      <button class="p3-btn-enviar" onclick="criarCampeonatoAdmin()">Criar campeonato</button>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PA-EDITAR — EDITAR / EXECUTAR CAMPEONATO
+  ══════════════════════════════════════════ -->
+  <div id="pa-editar" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="voltarGerenciarCampeonatos()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-camp" id="pa-editar-titulo"></div>
+    </header>
+
+    <div class="p3-inner">
+
+      <section class="pa-section">
+        <div class="pa-section-titulo">🍾 Executar campeonato</div>
+        <p class="p3-instrucao" style="margin-bottom:0">Quantas bebidas já foram servidas? Ao atualizar, os participantes veem a nova opção de voto aparecer.</p>
+        <div class="pa-liberar-row">
+          <button class="pa-step-btn" onclick="mudarLiberadas(-1)">−</button>
+          <div class="pa-liberar-valor"><span id="pa-liberadas-atual">0</span> / <span id="pa-liberadas-total">0</span></div>
+          <button class="pa-step-btn" onclick="mudarLiberadas(1)">+</button>
+        </div>
+        <button class="p3-btn-enviar" onclick="salvarLiberadas()">Atualizar bebidas liberadas</button>
+      </section>
+
+      <section class="pa-section">
+        <div class="pa-section-titulo">🍹 Bebidas (máx. 15)</div>
+        <div id="pa-bebidas-campos"></div>
+        <button class="p3-btn-enviar" onclick="salvarBebidas()">Salvar bebidas</button>
+      </section>
+
+      <section class="pa-section">
+        <div class="pa-section-titulo">Ações</div>
+        <button class="pa-btn-secundario" onclick="revelarAdmin()">🎭 Revelar resultados</button>
+        <button class="pa-btn-secundario perigo" onclick="encerrarAdmin()">Encerrar campeonato</button>
+      </section>
+
+    </div>
+
+  </div>
+
   <!-- TOAST -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="static/app.js"></script>
+  <script src="static/app.js?v=6"></script>
 </body>
 </html>
