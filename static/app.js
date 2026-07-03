@@ -75,9 +75,11 @@ function escHtml(s) {
 
 // ── P1: Entrada ───────────────────────────────────────────────────────────────
 async function entrar() {
+  console.log('entrar() chamado');
   const nome = document.getElementById('ent-nome').value.trim();
   const tel  = document.getElementById('ent-tel').value.trim();
   if (!nome) { toast('Informe seu nome', 'err'); return; }
+  console.log('nome:', nome);
 
   st.nome = nome;
   st.tel  = tel;
