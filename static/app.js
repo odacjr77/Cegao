@@ -70,33 +70,43 @@ async function entrar() {
   const tel  = document.getElementById('ent-tel').value.trim();
   if (!nome) { toast('Informe seu nome', 'err'); return; }
 
-  const btn = document.querySelector('.p1-btn');
-  btn.innerHTML = '<span>Entrando...</span>';
-  btn.disabled  = true;
+  st.nome = nome;
+  st.tel  = tel;
 
+  localStorage.setItem('cegao_nome', nome);
+  localStorage.setItem('cegao_tel',  tel);
+
+  // Navega imediatamente, sem esperar a rede
+  document.getElementById('topbar-user').innerHTML = `Olá, <strong>${escHtml(nome)}</strong>`;
+  document.getElementById('p2-list').innerHTML = `
+    <div class="p2-empty">
+      <div class="p2-empty-icon">⏳</div>
+      Carregando campeonatos...
+    </div>`;
+  showPage('p2');
+
+  // Carrega dados em segundo plano
   try {
     const [adminR, camps] = await Promise.all([
       tel ? asGet({ action: 'verificar', telefone: tel }) : Promise.resolve({ admin: false }),
       asGet({ action: 'campeonatos' }),
     ]);
 
-    st.nome    = nome;
-    st.tel     = tel;
     st.isAdmin = adminR.admin || false;
 
-    localStorage.setItem('cegao_nome', nome);
-    localStorage.setItem('cegao_tel',  tel);
-
-    document.getElementById('topbar-user').innerHTML =
-      `Olá, <strong>${escHtml(nome)}</strong>${st.isAdmin ? ' &nbsp;·&nbsp; 🎯 Admin' : ''}`;
+    if (st.isAdmin) {
+      document.getElementById('topbar-user').innerHTML =
+        `Olá, <strong>${escHtml(nome)}</strong> &nbsp;·&nbsp; 🎯 Admin`;
+    }
 
     renderP2(camps);
-    showPage('p2');
   } catch(e) {
-    toast(e.message || 'Erro de conexão', 'err');
-  } finally {
-    btn.innerHTML = '<span>Entrar</span><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>';
-    btn.disabled = false;
+    document.getElementById('p2-list').innerHTML = `
+      <div class="p2-empty">
+        <div class="p2-empty-icon">⚠️</div>
+        Erro ao carregar: ${escHtml(e.message || 'Verifique sua conexão')}<br><br>
+        <button class="agu-btn" onclick="voltarP1()">Tentar de novo</button>
+      </div>`;
   }
 }
 
