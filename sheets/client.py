@@ -23,8 +23,8 @@ def listar_campeonatos():
 def criar_campeonato(telefone: str, nome: str, bebidas: list[str]):
     return _post({"action": "criar_campeonato", "telefone": telefone, "nome": nome, "bebidas": bebidas})
 
-def registrar_voto(campeonato: str, nome: str, telefone: str, votos: list[str]):
-    return _post({"action": "votar", "campeonato": campeonato, "nome": nome, "telefone": telefone, "votos": votos})
+def registrar_voto(campeonato: str, nome: str, telefone: str, indice: int, bebida: str):
+    return _post({"action": "votar", "campeonato": campeonato, "nome": nome, "telefone": telefone, "indice": indice, "bebida": bebida})
 
 def listar_votos(campeonato: str):
     return _get({"action": "votos", "campeonato": campeonato})

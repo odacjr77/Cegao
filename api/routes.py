@@ -17,7 +17,8 @@ class VotoBody(BaseModel):
     campeonato: str
     nome: str
     telefone: str = ""
-    votos: list[str]
+    indice: int
+    bebida: str
 
 class AdminAction(BaseModel):
     telefone: str

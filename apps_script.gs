@@ -64,9 +64,9 @@ function doGet(e) {
     var ws = aba_(ABA_CAMPS, HDR_CAMPS);
     var camps = rows_(ws).filter(function(c){ return c['Status'] !== 'encerrado'; });
     return json_(camps.map(function(c){
-      var qtd = 0;
-      for (var i=1;i<=15;i++) if(c['Bebida '+i]) qtd++;
-      return { nome: c['Nome'], qtd_bebidas: qtd, revelado: c['Revelado']==='SIM' };
+      var bebidas = [];
+      for (var i=1;i<=15;i++) if(c['Bebida '+i]) bebidas.push(c['Bebida '+i]);
+      return { nome: c['Nome'], qtd_bebidas: bebidas.length, bebidas: bebidas, revelado: c['Revelado']==='SIM' };
     }));
   }
 
@@ -91,6 +91,17 @@ function doGet(e) {
     return json_({ bebidas: bebidas, votos: votos });
   }
 
+  // Debug: ver conteúdo das abas
+  if (p.action === 'debug') {
+    var ss = ss_();
+    var abas = ss.getSheets().map(function(ws){ return ws.getName(); });
+    var admWs = ss.getSheetByName(ABA_ADM);
+    var admData = admWs ? admWs.getDataRange().getValues() : 'aba não encontrada';
+    var campWs = ss.getSheetByName(ABA_CAMPS);
+    var campData = campWs ? campWs.getRange(1,1,Math.min(3,campWs.getLastRow()),campWs.getLastColumn()).getValues() : 'aba não encontrada';
+    return json_({ abas: abas, administradores: admData, campeonatos_amostra: campData });
+  }
+
   return json_({ ok: true });
 }
 
@@ -111,7 +122,8 @@ function doPost(e) {
     return json_({ ok: true, nome: d.nome });
   }
 
-  // Registrar voto (participante)
+  // Registrar voto (participante) — atualiza uma única bebida por vez,
+  // permitindo trocar o voto de qualquer índice a qualquer momento
   if (d.action === 'votar') {
     var wsCamps = aba_(ABA_CAMPS, HDR_CAMPS);
     var wsVotos = aba_(ABA_VOTOS, HDR_VOTOS);
@@ -119,23 +131,33 @@ function doPost(e) {
     if (!camp) return json_({ erro: 'Campeonato não encontrado' });
     if (camp['Status']==='encerrado') return json_({ erro: 'Campeonato encerrado' });
 
-    var nomeLow = (d.nome||'').toLowerCase();
-    var todos = wsVotos.getDataRange().getValues();
-    var hdrs  = todos[0];
-    var row = [d.nome, d.telefone||'', d.campeonato];
-    for (var i=1;i<=15;i++) row.push((d.votos&&d.votos[i-1]) ? d.votos[i-1] : '');
-    row.push('');
+    var indice = parseInt(d.indice, 10);
+    if (!indice || indice < 1 || indice > 15) return json_({ erro: 'Voto inválido' });
 
-    // Atualizar se já votou
-    for (var r=1; r<todos.length; r++) {
-      if ((todos[r][0]||'').toLowerCase()===nomeLow
-       && (todos[r][2]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
-        wsVotos.getRange(r+1,1,1,row.length).setValues([row]);
-        return json_({ ok:true, atualizado:true });
+    var nomeLow = (d.nome||'').toLowerCase();
+    var all  = wsVotos.getDataRange().getValues();
+    var hdrs = all[0];
+    var colVoto = hdrs.indexOf('Voto ' + indice);
+    var colTel  = hdrs.indexOf('Telefone');
+
+    for (var r=1; r<all.length; r++) {
+      if ((all[r][0]||'').toLowerCase()===nomeLow
+       && (all[r][2]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
+        wsVotos.getRange(r+1, colVoto+1).setValue(d.bebida || '');
+        if (d.telefone) wsVotos.getRange(r+1, colTel+1).setValue(d.telefone);
+        return json_({ ok:true });
       }
     }
+
+    var row = hdrs.map(function(h) {
+      if (h === 'Nome') return d.nome;
+      if (h === 'Telefone') return d.telefone || '';
+      if (h === 'Campeonato') return d.campeonato;
+      if (h === 'Voto ' + indice) return d.bebida || '';
+      return '';
+    });
     wsVotos.appendRow(row);
-    return json_({ ok:true, atualizado:false });
+    return json_({ ok:true });
   }
 
   // Revelar resultados (admin)

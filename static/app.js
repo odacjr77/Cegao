@@ -1,7 +1,7 @@
 // ── Estado ────────────────────────────────────────────────────────────────────
 const st = {
   nome: null, tel: null, isAdmin: false,
-  campNome: null, campQtd: 0, campRevelado: false,
+  campNome: null, campQtd: 0, campBebidas: [], campRevelado: false,
 };
 
 // ── Navegação ─────────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ function ir(id) {
 }
 
 function irHome() {
-  Object.assign(st, { nome:null, tel:null, isAdmin:false, campNome:null, campQtd:0, campRevelado:false });
+  Object.assign(st, { nome:null, tel:null, isAdmin:false, campNome:null, campQtd:0, campBebidas:[], campRevelado:false });
   document.getElementById('header-ctx').classList.add('hidden');
   ir('view-home');
 }
@@ -103,19 +103,37 @@ function renderListaCamps(camps) {
 async function abrirCamp(camp) {
   st.campNome     = camp.nome;
   st.campQtd      = camp.qtd_bebidas;
+  st.campBebidas  = camp.bebidas || [];
   st.campRevelado = camp.revelado;
   document.getElementById('vot-titulo').textContent = camp.nome;
-  document.getElementById('vot-form').classList.remove('hidden');
-  document.getElementById('vot-aguardando').classList.add('hidden');
 
+  let meuVoto = null;
+  try {
+    const todos = await api('GET', `/votos/${encodeURIComponent(camp.nome)}`);
+    meuVoto = todos.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase());
+  } catch (e) { /* segue sem pré-preencher */ }
+
+  const opcoes = [...st.campBebidas].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const campos = document.getElementById('vot-campos');
-  campos.innerHTML = Array.from({ length: camp.qtd_bebidas }, (_, i) => `
-    <div class="vot-campo">
+  campos.innerHTML = Array.from({ length: camp.qtd_bebidas }, (_, i) => {
+    const atual = meuVoto ? (meuVoto['Voto ' + (i + 1)] || '') : '';
+    const options = ['<option value="">— escolha —</option>']
+      .concat(opcoes.map(b => `<option value="${b}"${b === atual ? ' selected' : ''}>${b}</option>`));
+    return `<div class="vot-campo">
       <label>Bebida ${i + 1}</label>
-      <input type="text" id="voto-${i}" placeholder="Qual você acha que é?" autocomplete="off" />
-    </div>`).join('');
+      <select id="voto-${i}" onchange="salvarVoto(${i})">${options.join('')}</select>
+    </div>`;
+  }).join('');
 
   ir('view-votacao');
+}
+
+async function salvarVoto(i) {
+  const bebida = document.getElementById('voto-' + i).value;
+  try {
+    await api('POST', '/votos', { campeonato: st.campNome, nome: st.nome, telefone: st.tel, indice: i + 1, bebida });
+    toast('Voto salvo ✓', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 async function abrirResultados(camp) {
@@ -126,30 +144,6 @@ async function abrirResultados(camp) {
     renderResultados('res-gabarito', 'res-ranking', data);
     ir('view-resultados');
   } catch(e) { toast('Resultados não disponíveis ainda', 'err'); }
-}
-
-// ── Votação ───────────────────────────────────────────────────────────────────
-async function enviarVotos() {
-  const votos = Array.from({ length: st.campQtd }, (_, i) =>
-    (document.getElementById('voto-' + i)?.value || '').trim()
-  );
-  if (votos.every(v => !v)) { toast('Preencha ao menos um voto', 'err'); return; }
-
-  try {
-    await api('POST', '/votos', { campeonato: st.campNome, nome: st.nome, telefone: st.tel, votos });
-    toast('Votos enviados! 🎉', 'ok');
-    document.getElementById('vot-form').classList.add('hidden');
-    document.getElementById('vot-aguardando').classList.remove('hidden');
-  } catch(e) { toast(e.message, 'err'); }
-}
-
-async function tentarVerResultados() {
-  try {
-    const data = await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`);
-    document.getElementById('res-titulo').textContent = st.campNome;
-    renderResultados('res-gabarito', 'res-ranking', data);
-    ir('view-resultados');
-  } catch(e) { toast('Resultados ainda não revelados. Aguarde o admin.', 'err'); }
 }
 
 // ── Admin: lista ──────────────────────────────────────────────────────────────
