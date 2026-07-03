@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cegão — Degustação Às Cegas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="site-header">
+    <div class="logo" onclick="irParaInicio()">
+      <span class="logo-icon">🫙</span>
+      <span class="logo-text">Cegão</span>
+    </div>
+    <div id="header-info" class="header-info hidden"></div>
+  </header>
+
+  <!-- ═══ TOAST ═══ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ═══ VIEWS ═══ -->
+
+  <!-- HOME -->
+  <div id="view-home" class="view active">
+    <div class="home-hero">
+      <div class="hero-eyebrow">Degustação Às Cegas</div>
+      <h1 class="hero-title">Você sabe o que<br>está bebendo?</h1>
+      <p class="hero-desc">Prove, vote, descubra. Sem saber o que é.</p>
+    </div>
+    <div class="role-cards">
+      <button class="role-card" onclick="irParaParticipante()">
+        <div class="role-icon">🥂</div>
+        <div class="role-name">Participante</div>
+        <div class="role-desc">Entrar num campeonato e votar nas bebidas</div>
+      </button>
+      <button class="role-card" onclick="irParaAdmin()">
+        <div class="role-icon">🎯</div>
+        <div class="role-name">Administrador</div>
+        <div class="role-desc">Criar campeonatos, adicionar bebidas e revelar resultados</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- PARTICIPANTE: ENTRAR -->
+  <div id="view-participante-login" class="view">
+    <div class="view-header">
+      <button class="btn-back" onclick="irParaInicio()">← Voltar</button>
+      <h2>Entrar no Campeonato</h2>
+    </div>
+    <div class="form-card">
+      <div class="field">
+        <label>Código do campeonato</label>
+        <input id="p-codigo" type="text" placeholder="Ex: FESTA23" maxlength="10" style="text-transform:uppercase" />
+      </div>
+      <div class="field">
+        <label>Seu nome</label>
+        <input id="p-nome" type="text" placeholder="Como você quer ser chamado" maxlength="40" />
+      </div>
+      <button class="btn-primary" onclick="entrarCampeonato()">Entrar</button>
+    </div>
+  </div>
+
+  <!-- PARTICIPANTE: VOTAÇÃO -->
+  <div id="view-votacao" class="view">
+    <div class="view-header">
+      <button class="btn-back" onclick="irParaParticipante()">← Sair</button>
+      <h2 id="vot-camp-nome">Campeonato</h2>
+    </div>
+    <p class="view-sub" id="vot-participante-nome"></p>
+
+    <!-- AGUARDANDO REVELAÇÃO -->
+    <div id="aguardando" class="aguardando-card hidden">
+      <div class="agu-icon">🎭</div>
+      <h3>Votação concluída!</h3>
+      <p>Aguarde o administrador revelar os resultados.</p>
+    </div>
+
+    <!-- LISTA DE BEBIDAS -->
+    <div id="lista-bebidas" class="bebidas-grid"></div>
+
+    <!-- MODAL VOTO -->
+    <div id="modal-voto" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-tag" id="modal-bebida-tag"></div>
+        <h3 class="modal-title">Sua avaliação</h3>
+        <div class="star-row" id="star-row"></div>
+        <p class="nota-display"><span id="nota-num">—</span> <span class="nota-label">/ 10</span></p>
+        <div class="field">
+          <label>Comentário (opcional)</label>
+          <textarea id="modal-comentario" rows="3" placeholder="O que achou?"></textarea>
+        </div>
+        <div class="modal-btns">
+          <button class="btn-outline" onclick="fecharModal()">Cancelar</button>
+          <button class="btn-primary" onclick="enviarVoto()">Votar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTADOS PÚBLICOS -->
+  <div id="view-resultados" class="view">
+    <div class="view-header">
+      <button class="btn-back" onclick="irParaParticipante()">← Voltar</button>
+      <h2>Resultados</h2>
+    </div>
+    <div id="resultados-lista" class="resultados-lista"></div>
+  </div>
+
+  <!-- ADMIN: LOGIN -->
+  <div id="view-admin-login" class="view">
+    <div class="view-header">
+      <button class="btn-back" onclick="irParaInicio()">← Voltar</button>
+      <h2>Painel Admin</h2>
+    </div>
+    <div class="form-card">
+      <p class="form-card-desc">Entre num campeonato existente ou crie um novo.</p>
+      <div class="tabs-small">
+        <button class="tab-s active" data-tab="entrar-admin" onclick="switchAdminTab(this)">Entrar</button>
+        <button class="tab-s" data-tab="criar-camp" onclick="switchAdminTab(this)">Criar novo</button>
+      </div>
+
+      <!-- ENTRAR -->
+      <div id="tab-entrar-admin" class="tab-panel-s active">
+        <div class="field">
+          <label>ID do campeonato</label>
+          <input id="a-camp-id" type="text" placeholder="ID do campeonato" />
+        </div>
+        <div class="field">
+          <label>Senha de admin</label>
+          <input id="a-senha" type="password" placeholder="Sua senha" />
+        </div>
+        <button class="btn-primary" onclick="loginAdmin()">Entrar</button>
+      </div>
+
+      <!-- CRIAR -->
+      <div id="tab-criar-camp" class="tab-panel-s">
+        <div class="field">
+          <label>Nome do campeonato</label>
+          <input id="c-nome" type="text" placeholder="Ex: Whisky Night 2025" />
+        </div>
+        <div class="field">
+          <label>Código de acesso dos participantes</label>
+          <input id="c-codigo" type="text" placeholder="Ex: FESTA23" maxlength="10" style="text-transform:uppercase" />
+          <span class="field-hint">Os participantes usam este código para entrar</span>
+        </div>
+        <div class="field">
+          <label>Senha de admin</label>
+          <input id="c-senha" type="password" placeholder="Defina uma senha" />
+        </div>
+        <button class="btn-primary" onclick="criarCampeonato()">Criar campeonato</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: PAINEL -->
+  <div id="view-admin-painel" class="view">
+    <div class="view-header">
+      <button class="btn-back" onclick="irParaAdmin()">← Sair</button>
+      <h2 id="adm-camp-nome">Campeonato</h2>
+    </div>
+    <div class="adm-meta" id="adm-meta"></div>
+
+    <!-- BEBIDAS -->
+    <section class="adm-section">
+      <div class="adm-section-header">
+        <h3>Bebidas</h3>
+        <button class="btn-sm" onclick="toggleFormBebida()">+ Adicionar</button>
+      </div>
+      <div id="form-bebida" class="form-inline hidden">
+        <input id="adm-bebida-nome" type="text" placeholder="Nome real da bebida (ex: Johnnie Black)" />
+        <input id="adm-bebida-desc" type="text" placeholder="Descrição opcional" />
+        <button class="btn-primary btn-sm" onclick="adicionarBebida()">Adicionar</button>
+      </div>
+      <div id="adm-bebidas-lista" class="adm-bebidas-lista"></div>
+    </section>
+
+    <!-- PARTICIPANTES -->
+    <section class="adm-section">
+      <div class="adm-section-header">
+        <h3>Participantes e Progresso</h3>
+        <button class="btn-sm" onclick="recarregarAdmin()">↻ Atualizar</button>
+      </div>
+      <div id="adm-participantes" class="adm-participantes"></div>
+    </section>
+
+    <!-- AÇÕES -->
+    <section class="adm-section adm-acoes">
+      <button class="btn-primary" onclick="revelarResultados()">🎭 Revelar Resultados</button>
+      <button class="btn-outline btn-danger" onclick="encerrarCampeonato()">Encerrar Campeonato</button>
+    </section>
+
+    <!-- RESULTADOS ADMIN -->
+    <div id="adm-resultados" class="hidden">
+      <h3 class="adm-resultados-titulo">🏆 Resultados</h3>
+      <div id="adm-resultados-lista" class="resultados-lista"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
