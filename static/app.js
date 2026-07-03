@@ -84,6 +84,9 @@ async function entrar() {
     st.tel     = tel;
     st.isAdmin = adminR.admin || false;
 
+    localStorage.setItem('cegao_nome', nome);
+    localStorage.setItem('cegao_tel',  tel);
+
     document.getElementById('topbar-user').innerHTML =
       `Olá, <strong>${escHtml(nome)}</strong>${st.isAdmin ? ' &nbsp;·&nbsp; 🎯 Admin' : ''}`;
 
@@ -269,8 +272,15 @@ async function encerrarCampeonato(campeonato) {
 
 // ── Enter para submeter no P1 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  ['ent-nome', 'ent-tel'].forEach(id => {
-    const el = document.getElementById(id);
+  const nomeEl = document.getElementById('ent-nome');
+  const telEl  = document.getElementById('ent-tel');
+
+  const nomeSalvo = localStorage.getItem('cegao_nome');
+  const telSalvo  = localStorage.getItem('cegao_tel');
+  if (nomeSalvo) nomeEl.value = nomeSalvo;
+  if (telSalvo)  telEl.value  = telSalvo;
+
+  [nomeEl, telEl].forEach(el => {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
   });
 });
