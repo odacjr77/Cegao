@@ -47,7 +47,14 @@ function isAdmin_(telefone) {
   if (!t) return false;
   var ws = ss_().getSheetByName(ABA_ADM);
   if (!ws) return false;
-  return rows_(ws).some(function(r){ return tel_(r['Telefone']) === t; });
+  // Procura o número em qualquer célula (ignora linha de cabeçalho)
+  var data = ws.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
+    for (var c = 0; c < data[r].length; c++) {
+      if (tel_(data[r][c]) === t) return true;
+    }
+  }
+  return false;
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
