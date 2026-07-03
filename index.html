@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="static/style.css?v=12" />
+  <link rel="stylesheet" href="static/style.css?v=13" />
   <style>
     .page { display: none !important; }
     .page.active { display: block !important; }
@@ -99,16 +99,16 @@
     </header>
 
     <div class="p3-inner" id="p3-inner">
-      <div class="p3-refresh-row">
-        <button class="p3-refresh-btn" id="btn-atualizar" onclick="atualizarVotacao()">
-          <span class="p3-refresh-icon">↻</span> Atualizar
-        </button>
-      </div>
       <p class="p3-instrucao">Para cada bebida servida, escolha qual você acha que é. Pode trocar quando quiser — cada escolha é salva na hora.</p>
       <div id="p3-campos" class="p3-campos"></div>
-      <button class="p3-btn-enviar" id="btn-enviar" onclick="checarResultados()">
-        Ver resultados
-      </button>
+      <div class="p3-botoes">
+        <button class="p3-btn-enviar" id="btn-atualizar" onclick="atualizarVotacao()">
+          <span class="p3-refresh-icon">↻</span> Atualizar
+        </button>
+        <button class="p3-btn-enviar" id="btn-enviar" onclick="checarResultados()">
+          Ver resultados
+        </button>
+      </div>
     </div>
 
     <!-- Tela de resultados -->
@@ -240,6 +240,6 @@
   <!-- TOAST -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="static/app.js?v=12"></script>
+  <script src="static/app.js?v=13"></script>
 </body>
 </html>

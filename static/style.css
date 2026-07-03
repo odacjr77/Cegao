@@ -339,6 +339,19 @@ body {
   margin-bottom: 24px;
 }
 
+.p3-botoes {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.p3-botoes .p3-btn-enviar { flex: 1; }
+.p3-refresh-icon { display: inline-block; }
+.p3-btn-enviar.girando .p3-refresh-icon { animation: girar-spin .7s linear infinite; }
+@keyframes girar-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .p3-campos { display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; }
 
 .p3-campo {
@@ -513,6 +526,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
+  animation: gab-in .3s ease;
 }
 .res-gab-num {
   font-family: var(--serif);
@@ -521,7 +535,20 @@ body {
   color: var(--gold);
   min-width: 22px;
 }
-.res-gab-nome { font-size: 0.92rem; color: var(--text); }
+.res-gab-nome { flex: 1; font-size: 0.92rem; color: var(--text); }
+.res-gab-voto {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--dim2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.res-gab-voto.acerto { color: #2ecc71; }
+.res-gab-voto.erro   { color: #e74c3c; }
+@keyframes gab-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 .res-rank { display: flex; flex-direction: column; gap: 10px; }
 .res-rank-titulo {
@@ -539,10 +566,13 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  will-change: transform;
+  transition: border-color .3s, background .3s;
 }
 .res-row.primeiro { border-color: rgba(201,168,76,.5); background: rgba(201,168,76,.05); }
 .res-pos { font-size: 1.3rem; min-width: 30px; }
 .res-nome { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.res-nome small { font-weight: 400; color: var(--dim2); font-size: 0.78rem; }
 .res-pts {
   font-family: var(--serif);
   font-size: 1.4rem;
