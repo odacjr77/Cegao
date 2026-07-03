@@ -82,10 +82,7 @@ async function entrar() {
   st.nome = nome;
   st.tel  = tel;
 
-  localStorage.setItem('cegao_nome', nome);
-  localStorage.setItem('cegao_tel',  tel);
-
-  // Navega imediatamente, sem esperar a rede
+  // Navega imediatamente, antes de qualquer I/O
   document.getElementById('topbar-user').innerHTML = `Olá, <strong>${escHtml(nome)}</strong>`;
   document.getElementById('p2-list').innerHTML = `
     <div class="p2-empty">
@@ -102,6 +99,8 @@ async function entrar() {
     ]);
 
     st.isAdmin = adminR.admin || false;
+
+    try { localStorage.setItem('cegao_nome', nome); localStorage.setItem('cegao_tel', tel); } catch(_) {}
 
     if (st.isAdmin) {
       document.getElementById('pa-menu-user').innerHTML = `Olá, <strong>${escHtml(nome)}</strong>`;
@@ -491,10 +490,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const nomeEl = document.getElementById('ent-nome');
   const telEl  = document.getElementById('ent-tel');
 
-  const nomeSalvo = localStorage.getItem('cegao_nome');
-  const telSalvo  = localStorage.getItem('cegao_tel');
-  if (nomeSalvo) nomeEl.value = nomeSalvo;
-  if (telSalvo)  telEl.value  = telSalvo;
+  try {
+    const nomeSalvo = localStorage.getItem('cegao_nome');
+    const telSalvo  = localStorage.getItem('cegao_tel');
+    if (nomeSalvo) nomeEl.value = nomeSalvo;
+    if (telSalvo)  telEl.value  = telSalvo;
+  } catch(_) {}
 
   [nomeEl, telEl].forEach(el => {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
