@@ -49,6 +49,19 @@ function showPage(id) {
     el.style.display = 'block';
   }
   window.scrollTo(0, 0);
+  salvarNavegacao(id);
+}
+
+// Guarda em qual tela o usuário está (e em qual campeonato), pra sobreviver
+// a um refresh (F5) do navegador. Fica em sessionStorage — some ao fechar a aba.
+function salvarNavegacao(pagina) {
+  try {
+    sessionStorage.setItem('cegao_nav', JSON.stringify({
+      pagina,
+      campNome:     st.campNome     || '',
+      editCampNome: st.editCampNome || '',
+    }));
+  } catch(_) {}
 }
 
 function voltarP1() {
@@ -307,37 +320,140 @@ async function mostrarResultados() {
   }
 }
 
+let _resAnimId = 0;
+
 function renderResultados(data) {
   document.getElementById('p3-inner').classList.add('hidden');
   document.getElementById('p3-resultado').classList.remove('hidden');
   document.getElementById('res-titulo').textContent = st.campNome;
 
-  const gabEl = document.getElementById('res-gab');
-  gabEl.innerHTML = `
+  const bebidas       = data.bebidas || [];
+  const participantes = data.votos   || [];
+  const total         = bebidas.length;
+
+  // Gabarito completo e imediato — todos votos já visíveis
+  const meu = participantes.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase()) || {};
+  document.getElementById('res-gab').innerHTML = `
     <div class="res-gab-titulo">Gabarito</div>
-    ${data.bebidas.map((b, i) => `
-      <div class="res-gab-row">
-        <span class="res-gab-num">${String.fromCharCode(65 + i)}</span>
+    <div class="res-gab-header">
+      <span></span>
+      <span class="res-gab-col">Bebida real</span>
+      <span class="res-gab-col">Seu palpite</span>
+    </div>
+    ${bebidas.map((b, i) => {
+      const letra   = String.fromCharCode(65 + i);
+      const voto    = meu['Voto ' + (i + 1)] || '';
+      const acertou = voto && voto.toLowerCase().trim() === b.toLowerCase().trim();
+      return `<div class="res-gab-row">
+        <span class="res-gab-num">${letra}</span>
         <span class="res-gab-nome">${escHtml(b)}</span>
-      </div>`).join('')}`;
-
-  const total  = data.bebidas.length;
-  const sorted = [...data.votos].sort((a, b) => (Number(b['Acertos'])||0) - (Number(a['Acertos'])||0));
-  const medals = ['🥇','🥈','🥉'];
-
-  document.getElementById('res-rank').innerHTML = `
-    <div class="res-rank-titulo">Ranking de acertos</div>
-    ${sorted.map((v, i) => {
-      const pts   = v['Acertos'] !== '' ? Number(v['Acertos']) : null;
-      const label = pts !== null ? pts : '—';
-      const pct   = pts !== null ? `<small>/${total}</small>` : '';
-      const medal = medals[i] || `#${i + 1}`;
-      return `<div class="res-row ${i === 0 ? 'primeiro' : ''}">
-        <span class="res-pos">${medal}</span>
-        <span class="res-nome">${escHtml(v['Nome'])}</span>
-        <span class="res-pts">${label}${pct}</span>
+        <span class="res-gab-voto ${voto ? (acertou ? 'acerto' : 'erro') : ''}">${escHtml(voto || '—')}${voto ? (acertou ? ' ✓' : ' ✗') : ''}</span>
       </div>`;
     }).join('')}`;
+
+  // Ranking começa zerado em ordem alfabética — vai se reordenando bebida a bebida
+  const ordemInicial = participantes
+    .map((_, idx) => idx)
+    .sort((a, b) => (participantes[a]['Nome']||'').localeCompare(participantes[b]['Nome']||'', 'pt-BR'));
+
+  document.getElementById('res-rank').innerHTML =
+    '<div class="res-rank-titulo" id="res-rank-label">Preparando...</div>' +
+    '<div class="res-rank-rows" id="res-rank-rows">' +
+    participantes.map((v, idx) => {
+      const souEu = (v['Nome']||'').toLowerCase() === st.nome.toLowerCase();
+      const pos   = ordemInicial.indexOf(idx) + 1;
+      return `<div class="res-row${souEu ? ' eu' : ''}" id="res-row-${idx}" style="order:${pos}">
+        <span class="res-pos" id="res-pos-${idx}">#${pos}</span>
+        <span class="res-nome">${escHtml(v['Nome'])}</span>
+        <span class="res-pts" id="res-pts-${idx}">0<small>/${total}</small></span>
+      </div>`;
+    }).join('') +
+    '</div>';
+
+  animarRevelacao(bebidas, participantes, total);
+}
+
+// Vai bebida a bebida atualizando o ranking (sobe/desce) com animação FLIP real.
+async function animarRevelacao(bebidas, participantes, total) {
+  const meuId  = ++_resAnimId;
+  const scores = participantes.map(() => 0);
+  const medals = ['🥇', '🥈', '🥉'];
+
+  await new Promise(r => setTimeout(r, 700));
+
+  for (let step = 0; step < total; step++) {
+    const labelEl = document.getElementById('res-rank-label');
+    const rowsEl  = document.getElementById('res-rank-rows');
+    if (meuId !== _resAnimId || !rowsEl) return;
+
+    const letra    = String.fromCharCode(65 + step);
+    const resposta = (bebidas[step] || '').toLowerCase().trim();
+    if (labelEl) labelEl.textContent = `Bebida ${letra}...`;
+
+    // Calcula quem acertou esta bebida
+    const acertaram = [];
+    participantes.forEach((v, idx) => {
+      const voto = (v['Voto ' + (step + 1)] || '').toLowerCase().trim();
+      if (voto && voto === resposta) { scores[idx]++; acertaram.push(idx); }
+    });
+
+    // Flash verde nos acertadores
+    acertaram.forEach(idx => {
+      const el = document.getElementById('res-row-' + idx);
+      if (!el) return;
+      el.classList.remove('flash');
+      void el.offsetHeight; // força repintura para re-triggar a animação CSS
+      el.classList.add('flash');
+    });
+
+    await new Promise(r => setTimeout(r, 550));
+    if (meuId !== _resAnimId || !document.getElementById('res-rank-rows')) return;
+
+    // Nova ordenação por pontuação
+    const novaOrdem = participantes
+      .map((_, idx) => idx)
+      .sort((a, b) => scores[b] - scores[a] ||
+        (participantes[a]['Nome']||'').localeCompare(participantes[b]['Nome']||'', 'pt-BR'));
+
+    const linhas = participantes.map((_, idx) => document.getElementById('res-row-' + idx));
+
+    // FLIP: mede posições ANTES de mudar a ordem
+    const antes = linhas.map(el => el ? el.getBoundingClientRect() : null);
+
+    // Aplica nova ordem e atualiza medalhas/pontos
+    novaOrdem.forEach((idx, pos) => {
+      const el = linhas[idx]; if (!el) return;
+      el.style.order = pos + 1;
+      el.classList.toggle('primeiro', pos === 0);
+      const posEl = document.getElementById('res-pos-' + idx);
+      const ptsEl = document.getElementById('res-pts-' + idx);
+      if (posEl) posEl.textContent = medals[pos] || ('#' + (pos + 1));
+      if (ptsEl) ptsEl.innerHTML   = `${scores[idx]}<small>/${total}</small>`;
+    });
+
+    // Força reflow para o browser calcular as novas posições
+    void rowsEl.offsetHeight;
+
+    // FLIP: translada cada linha de volta ao ponto de origem e anima até a posição nova
+    linhas.forEach((el, idx) => {
+      if (!el || !antes[idx]) return;
+      const deltaY = antes[idx].top - el.getBoundingClientRect().top;
+      if (!deltaY) return;
+      el.style.transition = 'none';
+      el.style.transform  = `translateY(${deltaY}px)`;
+      // Duplo RAF: garante que o estado inicial foi pintado antes de iniciar a transição
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = 'transform .45s ease';
+        el.style.transform  = '';
+      }));
+    });
+
+    if (step === total - 1 && labelEl) {
+      setTimeout(() => { if (labelEl) labelEl.textContent = 'Resultado final 🏆'; }, 500);
+    }
+
+    await new Promise(r => setTimeout(r, 1300));
+  }
 }
 
 // ── Admin: chamadas ao Apps Script ────────────────────────────────────────────
@@ -512,14 +628,63 @@ async function encerrarAdmin() {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// ── Restaura a tela em que o usuário estava antes do refresh ──────────────────
+async function restaurarNavegacao(nomeSalvo, telSalvo) {
+  let nav = null;
+  try { nav = JSON.parse(sessionStorage.getItem('cegao_nav') || 'null'); } catch(_) {}
+  if (!nav || !nav.pagina || nav.pagina === 'p1' || !nomeSalvo) return;
+
+  st.nome = nomeSalvo;
+  st.tel  = telSalvo || '';
+
+  const paginasAdmin = ['pa-menu', 'pa-camps', 'pa-novo', 'pa-editar'];
+
+  try {
+    if (paginasAdmin.includes(nav.pagina)) {
+      const adminR = st.tel ? await asGet({ action: 'verificar', telefone: st.tel }) : { admin: false };
+      if (!adminR.admin) return; // não é mais admin — fica na tela inicial
+      st.isAdmin = true;
+      document.getElementById('pa-menu-user').innerHTML = `Olá, <strong>${escHtml(nomeSalvo)}</strong>`;
+
+      if (nav.pagina === 'pa-editar' && nav.editCampNome) {
+        const camps = await asGet({ action: 'admin_campeonatos', telefone: st.tel });
+        st.adminCamps = camps;
+        const idx = camps.findIndex(c => c.nome === nav.editCampNome);
+        if (idx >= 0) { await abrirEditarCampeonato(idx); return; }
+        await abrirGerenciarCampeonatos();
+      } else if (nav.pagina === 'pa-camps' || nav.pagina === 'pa-novo') {
+        await abrirGerenciarCampeonatos();
+      } else {
+        showPage('pa-menu');
+      }
+      return;
+    }
+
+    // Fluxo participante (p2 / p3)
+    document.getElementById('topbar-user').innerHTML = `Olá, <strong>${escHtml(nomeSalvo)}</strong>`;
+    const camps = await asGet({ action: 'campeonatos' });
+    st.camps = camps;
+
+    if (nav.pagina === 'p3' && nav.campNome) {
+      const idx = camps.findIndex(c => c.nome === nav.campNome);
+      if (idx >= 0) { await abrirCamp(idx); return; }
+    }
+    renderP2(camps);
+    showPage('p2');
+  } catch(e) {
+    // Se der erro ao restaurar, fica na tela inicial mesmo — não trava o app.
+  }
+}
+
 // ── Enter para submeter no P1 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const nomeEl = document.getElementById('ent-nome');
   const telEl  = document.getElementById('ent-tel');
 
+  let nomeSalvo = '', telSalvo = '';
   try {
-    const nomeSalvo = localStorage.getItem('cegao_nome');
-    const telSalvo  = localStorage.getItem('cegao_tel');
+    nomeSalvo = localStorage.getItem('cegao_nome') || '';
+    telSalvo  = localStorage.getItem('cegao_tel')  || '';
     if (nomeSalvo) nomeEl.value = nomeSalvo;
     if (telSalvo)  telEl.value  = telSalvo;
   } catch(_) {}
@@ -527,4 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
   [nomeEl, telEl].forEach(el => {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
   });
+
+  restaurarNavegacao(nomeSalvo, telSalvo);
 });
