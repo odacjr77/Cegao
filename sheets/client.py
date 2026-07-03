@@ -9,8 +9,8 @@ def _get(params):
     r.raise_for_status()
     return r.json()
 
-def _post(body):
-    r = requests.post(WEBHOOK, json=body, timeout=15)
+def _post(body, timeout=15):
+    r = requests.post(WEBHOOK, json=body, timeout=timeout)
     r.raise_for_status()
     return r.json()
 
@@ -25,6 +25,9 @@ def criar_campeonato(telefone: str, nome: str, bebidas: list[str]):
 
 def registrar_voto(campeonato: str, nome: str, telefone: str, indice: int, bebida: str):
     return _post({"action": "votar", "campeonato": campeonato, "nome": nome, "telefone": telefone, "indice": indice, "bebida": bebida})
+
+def enviar_foto(campeonato: str, nome: str, telefone: str, foto_base64: str, mime: str):
+    return _post({"action": "foto", "campeonato": campeonato, "nome": nome, "telefone": telefone, "foto": foto_base64, "mime": mime}, timeout=30)
 
 def listar_votos(campeonato: str):
     return _get({"action": "votos", "campeonato": campeonato})

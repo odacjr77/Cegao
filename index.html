@@ -3,135 +3,123 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cegão — Degustação Às Cegas</title>
+  <title>Cegão</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-  <header class="site-header">
-    <div class="logo" onclick="irHome()">
-      <span class="logo-icon">🫙</span>
-      <span class="logo-text">Cegão</span>
-    </div>
-    <div id="header-ctx" class="header-ctx hidden"></div>
-  </header>
+  <!-- ══════════════════════════════════════════
+       P1 — ENTRADA
+  ══════════════════════════════════════════ -->
+  <div id="p1" class="page active">
 
+    <div class="p1-bg">
+      <div class="p1-blur-1"></div>
+      <div class="p1-blur-2"></div>
+    </div>
+
+    <div class="p1-content">
+      <div class="p1-logo">
+        <span class="p1-logo-icon">🫙</span>
+        <h1 class="p1-logo-text">Cegão</h1>
+      </div>
+
+      <div class="p1-tagline">
+        <p class="p1-tag-top">Degustação às cegas</p>
+        <p class="p1-tag-main">Você sabe o que<br>está bebendo?</p>
+        <p class="p1-tag-sub">Prove. Chute. Descubra.</p>
+      </div>
+
+      <div class="p1-form">
+        <div class="p1-input-wrap">
+          <label class="p1-label">Seu nome</label>
+          <input id="ent-nome" class="p1-input" type="text"
+                 placeholder="Como quer ser chamado"
+                 maxlength="40" autocomplete="off" />
+        </div>
+        <div class="p1-input-wrap">
+          <label class="p1-label">
+            Telefone
+            <span class="p1-opt">opcional</span>
+          </label>
+          <input id="ent-tel" class="p1-input" type="tel"
+                 placeholder="(11) 99999-9999"
+                 maxlength="20" autocomplete="tel" />
+        </div>
+        <button class="p1-btn" onclick="entrar()">
+          <span>Entrar</span>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       P2 — CAMPEONATOS
+  ══════════════════════════════════════════ -->
+  <div id="p2" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="voltarP1()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-user" id="topbar-user"></div>
+    </header>
+
+    <div class="p2-hero">
+      <p class="p2-eyebrow">Escolha uma rodada</p>
+      <h2 class="p2-title">Campeonatos<br>disponíveis</h2>
+    </div>
+
+    <div class="p2-list" id="p2-list"></div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       P3 — VOTAÇÃO
+  ══════════════════════════════════════════ -->
+  <div id="p3" class="page">
+
+    <header class="topbar">
+      <button class="topbar-back" onclick="voltarP2()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="topbar-camp" id="topbar-camp"></div>
+    </header>
+
+    <div class="p3-inner">
+      <p class="p3-instrucao">Para cada bebida que você provou, escreva o nome que acha que é:</p>
+      <div id="p3-campos" class="p3-campos"></div>
+      <button class="p3-btn-enviar" id="btn-enviar" onclick="enviarTodos()">
+        Enviar votos
+      </button>
+    </div>
+
+    <!-- Tela de aguardo (após envio) -->
+    <div id="p3-aguardo" class="p3-aguardo hidden">
+      <div class="agu-emoji">🎭</div>
+      <h3 class="agu-titulo">Votos registrados!</h3>
+      <p class="agu-sub">Aguarde o administrador<br>revelar os resultados.</p>
+      <button class="agu-btn" onclick="checarResultados()">Verificar resultados</button>
+    </div>
+
+    <!-- Tela de resultados -->
+    <div id="p3-resultado" class="p3-resultado hidden">
+      <div class="res-header">
+        <h3 class="res-titulo">Resultados 🏆</h3>
+      </div>
+      <div id="res-gab" class="res-gab"></div>
+      <div id="res-rank" class="res-rank"></div>
+    </div>
+
+  </div>
+
+  <!-- TOAST -->
   <div id="toast" class="toast hidden"></div>
-
-  <!-- ══ ENTRADA ══ -->
-  <div id="view-home" class="view active">
-    <div class="home-hero">
-      <p class="eyebrow">Degustação Às Cegas</p>
-      <h1 class="hero-title">Você sabe o que<br>está bebendo?</h1>
-      <p class="hero-sub">Prove, chute o nome, veja quem acertou mais.</p>
-    </div>
-    <div class="card">
-      <div class="field">
-        <label>Seu nome</label>
-        <input id="ent-nome" type="text" placeholder="Como quer ser chamado" maxlength="40" />
-      </div>
-      <div class="field">
-        <label>Telefone <span class="opt">(opcional — admins precisam informar)</span></label>
-        <input id="ent-tel" type="tel" placeholder="11 99999-9999" maxlength="20" />
-      </div>
-      <button class="btn-primary" onclick="entrar()">Entrar</button>
-    </div>
-  </div>
-
-  <!-- ══ PARTICIPANTE: LISTA DE CAMPEONATOS ══ -->
-  <div id="view-lista" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="irHome()">← Sair</button>
-      <h2 id="lista-titulo">Campeonatos</h2>
-    </div>
-    <div id="lista-camps" class="lista-camps"></div>
-  </div>
-
-  <!-- ══ PARTICIPANTE: VOTAÇÃO ══ -->
-  <div id="view-votacao" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="ir('view-lista')">← Voltar</button>
-      <h2 id="vot-titulo">Campeonato</h2>
-    </div>
-
-    <p class="instrucao">Para cada bebida servida, escolha qual você acha que é. Pode repetir bebida e trocar o voto quando quiser — cada escolha é salva na hora.</p>
-    <div id="vot-campos" class="vot-campos"></div>
-  </div>
-
-  <!-- ══ RESULTADOS ══ -->
-  <div id="view-resultados" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="ir('view-lista')">← Voltar</button>
-      <h2 id="res-titulo">Resultados</h2>
-    </div>
-    <div id="res-gabarito" class="gabarito"></div>
-    <div id="res-ranking"  class="ranking"></div>
-  </div>
-
-  <!-- ══ ADMIN: PAINEL ══ -->
-  <div id="view-admin" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="irHome()">← Sair</button>
-      <h2>Painel Admin</h2>
-    </div>
-
-    <!-- Criar campeonato -->
-    <section class="adm-section">
-      <div class="adm-section-hdr">
-        <h3>Campeonatos ativos</h3>
-        <button class="btn-sm" onclick="toggleCriar()">+ Novo</button>
-      </div>
-
-      <div id="form-criar" class="card hidden" style="margin-bottom:14px">
-        <div class="field">
-          <label>Nome do campeonato</label>
-          <input id="c-nome" type="text" placeholder="Ex: Whisky Night 2025" />
-        </div>
-        <div class="field">
-          <label>Bebidas (uma por linha, na ordem de serviço)</label>
-          <textarea id="c-bebidas" rows="5" placeholder="Skoll&#10;Brahma&#10;Antarctica&#10;Heineken"></textarea>
-          <span class="hint">Participantes verão apenas os números: Bebida 1, Bebida 2...</span>
-        </div>
-        <button class="btn-primary" onclick="criarCampeonato()">Criar</button>
-      </div>
-
-      <div id="adm-lista-camps" class="lista-camps"></div>
-    </section>
-  </div>
-
-  <!-- ══ ADMIN: GERENCIAR CAMPEONATO ══ -->
-  <div id="view-admin-camp" class="view">
-    <div class="vheader">
-      <button class="btn-back" onclick="ir('view-admin')">← Voltar</button>
-      <h2 id="adm-camp-titulo"></h2>
-    </div>
-
-    <section class="adm-section">
-      <div class="adm-section-hdr">
-        <h3>Participantes e votos</h3>
-        <button class="btn-sm" onclick="recarregarCamp()">↻</button>
-      </div>
-      <div id="adm-prog" class="adm-prog"></div>
-    </section>
-
-    <section class="adm-section">
-      <h3>Gabarito (só você vê)</h3>
-      <div id="adm-gab" class="gabarito" style="margin-top:10px"></div>
-    </section>
-
-    <section class="adm-acoes">
-      <button class="btn-primary" onclick="revelar()">🎭 Revelar Resultados</button>
-      <button class="btn-outline btn-danger" onclick="encerrar()">Encerrar campeonato</button>
-    </section>
-
-    <div id="adm-res-wrap" class="hidden">
-      <h3 class="adm-res-titulo">🏆 Ranking</h3>
-      <div id="adm-ranking" class="ranking"></div>
-    </div>
-  </div>
 
   <script src="/static/app.js"></script>
 </body>

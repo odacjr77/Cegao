@@ -1,26 +1,29 @@
 // ── Estado ────────────────────────────────────────────────────────────────────
 const st = {
-  nome: null, tel: null, isAdmin: false,
-  campNome: null, campQtd: 0, campBebidas: [], campRevelado: false,
+  nome: '', tel: '', isAdmin: false,
+  campNome: '', campQtd: 0, campBebidas: [], campRevelado: false,
+  votos: [],        // string[], indexados por posição (0-based)
+  enviado: false,
 };
 
 // ── Navegação ─────────────────────────────────────────────────────────────────
-function ir(id) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0, 0);
 }
 
-function irHome() {
-  Object.assign(st, { nome:null, tel:null, isAdmin:false, campNome:null, campQtd:0, campBebidas:[], campRevelado:false });
-  document.getElementById('header-ctx').classList.add('hidden');
-  ir('view-home');
+function voltarP1() {
+  Object.assign(st, {
+    nome:'', tel:'', isAdmin:false,
+    campNome:'', campQtd:0, campBebidas:[], campRevelado:false,
+    votos:[], enviado:false,
+  });
+  showPage('p1');
 }
 
-function setCtx(html) {
-  const el = document.getElementById('header-ctx');
-  el.innerHTML = html;
-  el.classList.remove('hidden');
+function voltarP2() {
+  showPage('p2');
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -30,7 +33,7 @@ function toast(msg, tipo = '') {
   el.textContent = msg;
   el.className = 'toast' + (tipo ? ' ' + tipo : '');
   clearTimeout(_tt);
-  _tt = setTimeout(() => el.classList.add('hidden'), 3500);
+  _tt = setTimeout(() => el.classList.add('hidden'), 3000);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -43,229 +46,268 @@ async function api(method, path, body) {
   return data;
 }
 
-// ── Entrada ───────────────────────────────────────────────────────────────────
+// ── P1: Entrada ───────────────────────────────────────────────────────────────
 async function entrar() {
   const nome = document.getElementById('ent-nome').value.trim();
   const tel  = document.getElementById('ent-tel').value.trim();
   if (!nome) { toast('Informe seu nome', 'err'); return; }
+
+  const btn = document.querySelector('.p1-btn');
+  btn.textContent = '...';
+  btn.disabled = true;
 
   try {
     const r = await api('POST', '/entrar', { nome, telefone: tel });
     st.nome    = nome;
     st.tel     = tel;
     st.isAdmin = r.admin;
-    setCtx(`${nome}${r.admin ? '<br><small>🎯 Admin</small>' : ''}`);
 
-    if (r.admin) {
-      renderAdminLista(r.campeonatos);
-      ir('view-admin');
-    } else {
-      renderListaCamps(r.campeonatos);
-      ir('view-lista');
-    }
-  } catch(e) { toast(e.message, 'err'); }
+    document.getElementById('topbar-user').innerHTML =
+      `Olá, <strong>${nome}</strong>${r.admin ? ' &nbsp;·&nbsp; 🎯 Admin' : ''}`;
+
+    renderP2(r.campeonatos);
+    showPage('p2');
+  } catch(e) {
+    toast(e.message, 'err');
+  } finally {
+    btn.innerHTML = '<span>Entrar</span><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>';
+    btn.disabled = false;
+  }
 }
 
-// ── Lista de campeonatos (participante) ───────────────────────────────────────
-function renderListaCamps(camps) {
-  document.getElementById('lista-titulo').textContent = `Olá, ${st.nome} 👋`;
-  const el = document.getElementById('lista-camps');
-  const ativos = camps.filter(c => !c.revelado);
-  const revelados = camps.filter(c => c.revelado);
+// ── P2: Lista de campeonatos ───────────────────────────────────────────────────
+function renderP2(camps) {
+  const el = document.getElementById('p2-list');
 
-  if (camps.length === 0) {
-    el.innerHTML = '<p class="dim" style="text-align:center;padding:32px 0">Nenhum campeonato ativo no momento.</p>';
+  if (!camps || camps.length === 0) {
+    el.innerHTML = `
+      <div class="p2-empty">
+        <div class="p2-empty-icon">🍶</div>
+        Nenhum campeonato disponível no momento.<br>Aguarde o administrador criar um.
+      </div>`;
     return;
   }
 
-  let html = '';
-  if (ativos.length) {
-    html += '<p class="lista-label">Participar:</p>';
-    html += ativos.map(c => `
-      <div class="camp-card" onclick="abrirCamp(${JSON.stringify(c)})">
+  el.innerHTML = camps.map(c => {
+    const status = c.revelado ? 'Ver resultado 🏆' : `${c.qtd_bebidas} bebida${c.qtd_bebidas !== 1 ? 's' : ''}`;
+    const icon   = c.revelado ? '🏆' : '🫙';
+    return `<div class="camp-card ${c.revelado ? 'camp-card-done' : ''}"
+                 onclick='abrirCamp(${JSON.stringify(c)})'>
+      <div class="camp-icon">${icon}</div>
+      <div class="camp-info">
         <div class="camp-nome">${c.nome}</div>
-        <div class="camp-meta">${c.qtd_bebidas} bebida(s) · Em andamento</div>
-        <div class="camp-arrow">→</div>
-      </div>`).join('');
-  }
-  if (revelados.length) {
-    html += '<p class="lista-label" style="margin-top:20px">Resultados disponíveis:</p>';
-    html += revelados.map(c => `
-      <div class="camp-card camp-card-done" onclick="abrirResultados(${JSON.stringify(c)})">
-        <div class="camp-nome">${c.nome}</div>
-        <div class="camp-meta">Ver resultados 🏆</div>
-        <div class="camp-arrow">→</div>
-      </div>`).join('');
-  }
-  el.innerHTML = html;
+        <div class="camp-meta">${status}</div>
+      </div>
+      <div class="camp-arrow">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+      </div>
+    </div>`;
+  }).join('');
 }
 
+// ── P3: Votação ───────────────────────────────────────────────────────────────
 async function abrirCamp(camp) {
   st.campNome     = camp.nome;
   st.campQtd      = camp.qtd_bebidas;
   st.campBebidas  = camp.bebidas || [];
   st.campRevelado = camp.revelado;
-  document.getElementById('vot-titulo').textContent = camp.nome;
+  st.votos        = new Array(camp.qtd_bebidas).fill('');
+  st.enviado      = false;
 
-  let meuVoto = null;
+  document.getElementById('topbar-camp').textContent = camp.nome;
+
+  // Esconder estados alternativos
+  document.getElementById('p3-inner').classList.remove('hidden');
+  document.getElementById('p3-aguardo').classList.add('hidden');
+  document.getElementById('p3-resultado').classList.add('hidden');
+
+  // Carregar votos existentes
   try {
     const todos = await api('GET', `/votos/${encodeURIComponent(camp.nome)}`);
-    meuVoto = todos.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase());
-  } catch (e) { /* segue sem pré-preencher */ }
+    const meu   = todos.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase());
+    if (meu) {
+      for (let i = 0; i < camp.qtd_bebidas; i++) {
+        st.votos[i] = meu['Voto ' + (i + 1)] || '';
+      }
+      if (st.votos.some(v => v)) st.enviado = true;
+    }
+  } catch(e) { /* segue sem pré-preencher */ }
 
-  const opcoes = [...st.campBebidas].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const campos = document.getElementById('vot-campos');
-  campos.innerHTML = Array.from({ length: camp.qtd_bebidas }, (_, i) => {
-    const atual = meuVoto ? (meuVoto['Voto ' + (i + 1)] || '') : '';
-    const options = ['<option value="">— escolha —</option>']
-      .concat(opcoes.map(b => `<option value="${b}"${b === atual ? ' selected' : ''}>${b}</option>`));
-    return `<div class="vot-campo">
-      <label>Bebida ${i + 1}</label>
-      <select id="voto-${i}" onchange="salvarVoto(${i})">${options.join('')}</select>
+  // Exibir estado correto
+  if (camp.revelado) {
+    await mostrarResultados();
+  } else if (st.enviado) {
+    mostrarAguardo();
+  } else {
+    renderCamposVoto();
+  }
+
+  showPage('p3');
+}
+
+function renderCamposVoto() {
+  document.getElementById('p3-inner').classList.remove('hidden');
+  document.getElementById('p3-aguardo').classList.add('hidden');
+  document.getElementById('p3-resultado').classList.add('hidden');
+
+  const el = document.getElementById('p3-campos');
+  el.innerHTML = Array.from({ length: st.campQtd }, (_, i) => {
+    const label = String.fromCharCode(65 + i); // A, B, C...
+    return `<div class="p3-campo${st.votos[i] ? ' salvo' : ''}" id="campo-${i}">
+      <div class="p3-num">${label}</div>
+      <div class="p3-campo-inner">
+        <div class="p3-campo-label">Bebida ${label} — o que você acha?</div>
+        <input type="text" placeholder="Digite o nome..."
+               value="${escHtml(st.votos[i])}"
+               oninput="onVotoInput(${i}, this.value)"
+               onblur="salvarVoto(${i})"
+               autocomplete="off" />
+      </div>
+      <span class="p3-check">✓</span>
     </div>`;
   }).join('');
-
-  ir('view-votacao');
 }
 
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function onVotoInput(i, val) {
+  st.votos[i] = val;
+  const campo = document.getElementById('campo-' + i);
+  if (val.trim()) {
+    campo.classList.add('salvo');
+  } else {
+    campo.classList.remove('salvo');
+  }
+}
+
+let _saveTimers = {};
 async function salvarVoto(i) {
-  const bebida = document.getElementById('voto-' + i).value;
+  const bebida = (st.votos[i] || '').trim();
+  clearTimeout(_saveTimers[i]);
+  if (!bebida) return;
+
   try {
-    await api('POST', '/votos', { campeonato: st.campNome, nome: st.nome, telefone: st.tel, indice: i + 1, bebida });
-    toast('Voto salvo ✓', 'ok');
-  } catch(e) { toast(e.message, 'err'); }
+    await api('POST', '/votos', {
+      campeonato: st.campNome,
+      nome: st.nome,
+      telefone: st.tel,
+      indice: i + 1,
+      bebida,
+    });
+  } catch(e) {
+    toast('Erro ao salvar voto ' + (i+1), 'err');
+  }
 }
 
-async function abrirResultados(camp) {
-  st.campNome = camp.nome;
-  try {
-    const data = await api('GET', `/resultados/${encodeURIComponent(camp.nome)}`);
-    document.getElementById('res-titulo').textContent = camp.nome;
-    renderResultados('res-gabarito', 'res-ranking', data);
-    ir('view-resultados');
-  } catch(e) { toast('Resultados não disponíveis ainda', 'err'); }
-}
-
-// ── Admin: lista ──────────────────────────────────────────────────────────────
-function renderAdminLista(camps) {
-  const el = document.getElementById('adm-lista-camps');
-  if (!camps || camps.length === 0) {
-    el.innerHTML = '<p class="dim">Nenhum campeonato. Crie um novo acima.</p>';
+async function enviarTodos() {
+  const preenchidos = st.votos.filter(v => v.trim()).length;
+  if (preenchidos === 0) {
+    toast('Preencha ao menos um palpite', 'err');
     return;
   }
-  el.innerHTML = camps.map(c => `
-    <div class="camp-card ${c.revelado ? 'camp-card-done' : ''}" onclick="abrirAdminCamp(${JSON.stringify(c)})">
-      <div class="camp-nome">${c.nome}</div>
-      <div class="camp-meta">${c.qtd_bebidas} bebida(s) · ${c.revelado ? 'Revelado ✓' : 'Em andamento'}</div>
-      <div class="camp-arrow">→</div>
-    </div>`).join('');
+
+  const btn = document.getElementById('btn-enviar');
+  btn.textContent = 'Enviando...';
+  btn.disabled = true;
+
+  let ok = 0;
+  for (let i = 0; i < st.campQtd; i++) {
+    const bebida = (st.votos[i] || '').trim();
+    if (!bebida) continue;
+    try {
+      await api('POST', '/votos', {
+        campeonato: st.campNome,
+        nome: st.nome,
+        telefone: st.tel,
+        indice: i + 1,
+        bebida,
+      });
+      ok++;
+    } catch(e) { /* tenta todos */ }
+  }
+
+  btn.textContent = 'Enviar votos';
+  btn.disabled = false;
+
+  if (ok > 0) {
+    st.enviado = true;
+    toast(`${ok} voto${ok !== 1 ? 's' : ''} registrado${ok !== 1 ? 's' : ''}!`, 'ok');
+    mostrarAguardo();
+  } else {
+    toast('Erro ao registrar votos', 'err');
+  }
 }
 
-function toggleCriar() {
-  document.getElementById('form-criar').classList.toggle('hidden');
+function mostrarAguardo() {
+  document.getElementById('p3-inner').classList.add('hidden');
+  document.getElementById('p3-aguardo').classList.remove('hidden');
+  document.getElementById('p3-resultado').classList.add('hidden');
 }
 
-async function criarCampeonato() {
-  const nome   = document.getElementById('c-nome').value.trim();
-  const braw   = document.getElementById('c-bebidas').value.trim();
-  if (!nome || !braw) { toast('Preencha todos os campos', 'err'); return; }
-  const bebidas = braw.split('\n').map(b => b.trim()).filter(Boolean);
-  if (!bebidas.length) { toast('Adicione ao menos uma bebida', 'err'); return; }
-
+async function checarResultados() {
   try {
-    await api('POST', '/campeonatos', { telefone: st.tel, nome, bebidas });
-    toast('Campeonato criado!', 'ok');
-    document.getElementById('c-nome').value = '';
-    document.getElementById('c-bebidas').value = '';
-    document.getElementById('form-criar').classList.add('hidden');
-    const camps = await api('GET', '/campeonatos');
-    renderAdminLista(camps);
-  } catch(e) { toast(e.message, 'err'); }
+    const data = await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`);
+    renderResultados(data);
+  } catch(e) {
+    toast('Resultado ainda não disponível', 'err');
+  }
 }
 
-// ── Admin: gerenciar campeonato ───────────────────────────────────────────────
-async function abrirAdminCamp(camp) {
-  st.campNome     = camp.nome;
-  st.campQtd      = camp.qtd_bebidas;
-  st.campRevelado = camp.revelado;
-  document.getElementById('adm-camp-titulo').textContent = camp.nome;
-  document.getElementById('adm-res-wrap').classList.add('hidden');
-  await recarregarCamp();
-  ir('view-admin-camp');
-}
-
-async function recarregarCamp() {
+async function mostrarResultados() {
   try {
-    const votos = await api('GET', `/votos/${encodeURIComponent(st.campNome)}`);
-    const resultados = st.campRevelado
-      ? await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`)
-      : null;
-
-    // progresso
-    const prog = document.getElementById('adm-prog');
-    if (!votos.length) {
-      prog.innerHTML = '<p class="dim">Nenhum participante ainda.</p>';
-    } else {
-      prog.innerHTML = votos.map(v => {
-        const ac = v['Acertos'] !== '' ? ` · ${v['Acertos']} acerto(s)` : '';
-        return `<div class="prog-row"><strong>${v['Nome']}</strong>${v['Telefone'] ? ' <span class="dim">' + v['Telefone'] + '</span>' : ''}${ac}</div>`;
-      }).join('');
-    }
-
-    // gabarito (só admin)
-    if (resultados) {
-      renderResultados('adm-gab', 'adm-ranking', resultados);
-      document.getElementById('adm-res-wrap').classList.remove('hidden');
-    } else {
-      const gab = document.getElementById('adm-gab');
-      gab.innerHTML = '<p class="dim">Clique "Revelar" para exibir o gabarito e calcular os acertos.</p>';
-    }
-
-    toast('Atualizado', 'ok');
-  } catch(e) { toast(e.message, 'err'); }
+    const data = await api('GET', `/resultados/${encodeURIComponent(st.campNome)}`);
+    renderResultados(data);
+  } catch(e) {
+    mostrarAguardo();
+  }
 }
 
-async function revelar() {
-  if (!confirm('Revelar resultados agora? Os acertos serão calculados e todos poderão ver.')) return;
-  try {
-    await api('POST', '/revelar', { telefone: st.tel, campeonato: st.campNome });
-    st.campRevelado = true;
-    toast('Revelado! 🎭', 'ok');
-    await recarregarCamp();
-  } catch(e) { toast(e.message, 'err'); }
-}
+function renderResultados(data) {
+  document.getElementById('p3-inner').classList.add('hidden');
+  document.getElementById('p3-aguardo').classList.add('hidden');
+  document.getElementById('p3-resultado').classList.remove('hidden');
 
-async function encerrar() {
-  if (!confirm('Encerrar campeonato? Nenhum novo voto poderá ser registrado.')) return;
-  try {
-    await api('POST', '/encerrar', { telefone: st.tel, campeonato: st.campNome });
-    toast('Encerrado.', 'ok');
-    ir('view-admin');
-    const camps = await api('GET', '/campeonatos');
-    renderAdminLista(camps);
-  } catch(e) { toast(e.message, 'err'); }
-}
-
-// ── Renderizar resultados ─────────────────────────────────────────────────────
-function renderResultados(gabId, rankId, data) {
-  document.getElementById(gabId).innerHTML =
-    '<div class="gab-titulo">Gabarito:</div>' +
-    data.bebidas.map((b, i) =>
-      `<div class="gab-row"><span class="gab-num">${i + 1}</span>${b}</div>`
-    ).join('');
-
-  const total  = data.bebidas.length;
-  const sorted = [...data.votos].sort((a, b) => (Number(b['Acertos']) || 0) - (Number(a['Acertos']) || 0));
-  document.getElementById(rankId).innerHTML =
-    '<div class="rank-titulo">🏆 Ranking de acertos</div>' +
-    sorted.map((v, i) => {
-      const pts   = v['Acertos'] !== '' ? Number(v['Acertos']) : '—';
-      const pct   = typeof pts === 'number' ? ` <small>(${Math.round(pts / total * 100)}%)</small>` : '';
-      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
-      return `<div class="rank-row ${i===0?'rank-primeiro':''}">
-        <span class="rank-pos">${medal}</span>
-        <span class="rank-nome">${v['Nome']}</span>
-        <span class="rank-pts">${pts}${pct}</span>
+  // Gabarito
+  const gabEl = document.getElementById('res-gab');
+  gabEl.innerHTML = `
+    <div class="res-gab-titulo">Gabarito</div>
+    ${data.bebidas.map((b, i) => {
+      const letra = String.fromCharCode(65 + i);
+      return `<div class="res-gab-row">
+        <span class="res-gab-num">${letra}</span>
+        <span class="res-gab-nome">${b}</span>
       </div>`;
-    }).join('');
+    }).join('')}
+  `;
+
+  // Ranking
+  const total  = data.bebidas.length;
+  const sorted = [...data.votos].sort((a, b) => (Number(b['Acertos'])||0) - (Number(a['Acertos'])||0));
+  const medals = ['🥇','🥈','🥉'];
+
+  const rankEl = document.getElementById('res-rank');
+  rankEl.innerHTML = `
+    <div class="res-rank-titulo">Ranking de acertos</div>
+    ${sorted.map((v, i) => {
+      const pts   = v['Acertos'] !== '' ? Number(v['Acertos']) : null;
+      const label = pts !== null ? pts : '—';
+      const pct   = pts !== null ? `<small>/${total}</small>` : '';
+      const medal = medals[i] || `#${i+1}`;
+      return `<div class="res-row ${i===0?'primeiro':''}">
+        <span class="res-pos">${medal}</span>
+        <span class="res-nome">${v['Nome']}</span>
+        <span class="res-pts">${label}${pct}</span>
+      </div>`;
+    }).join('')}
+  `;
 }
+
+// ── Enter para submeter P1 ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  ['ent-nome','ent-tel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+  });
+});

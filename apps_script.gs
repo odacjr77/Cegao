@@ -17,7 +17,9 @@ var HDR_CAMPS = ['Nome', 'Bebida 1','Bebida 2','Bebida 3','Bebida 4','Bebida 5',
 var HDR_VOTOS = ['Nome','Telefone','Campeonato',
                  'Voto 1','Voto 2','Voto 3','Voto 4','Voto 5',
                  'Voto 6','Voto 7','Voto 8','Voto 9','Voto 10',
-                 'Voto 11','Voto 12','Voto 13','Voto 14','Voto 15','Acertos'];
+                 'Voto 11','Voto 12','Voto 13','Voto 14','Voto 15','Foto','Acertos'];
+
+var PASTA_FOTOS = 'Cegão - Fotos';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ss_()   { return SpreadsheetApp.openById(SS_ID); }
@@ -26,8 +28,25 @@ function json_(o){ return ContentService.createTextOutput(JSON.stringify(o)).set
 function aba_(nome, hdrs) {
   var ss = ss_();
   var ws = ss.getSheetByName(nome);
-  if (!ws) { ws = ss.insertSheet(nome); ws.appendRow(hdrs); }
+  if (!ws) { ws = ss.insertSheet(nome); ws.appendRow(hdrs); return ws; }
+  garantirColunas_(ws, hdrs);
   return ws;
+}
+
+// Acrescenta ao final quaisquer colunas do cabeçalho esperado que ainda não
+// existam na aba — permite evoluir HDR_* sem perder abas já criadas.
+function garantirColunas_(ws, hdrs) {
+  var lastCol = ws.getLastColumn();
+  var atuais = lastCol > 0 ? ws.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  var faltando = hdrs.filter(function(h) { return atuais.indexOf(h) === -1; });
+  if (faltando.length) {
+    ws.getRange(1, lastCol + 1, 1, faltando.length).setValues([faltando]);
+  }
+}
+
+function pastaFotos_() {
+  var it = DriveApp.getFoldersByName(PASTA_FOTOS);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(PASTA_FOTOS);
 }
 
 function rows_(ws) {
@@ -144,12 +163,14 @@ function doPost(e) {
     var nomeLow = (d.nome||'').toLowerCase();
     var all  = wsVotos.getDataRange().getValues();
     var hdrs = all[0];
+    var colNome = hdrs.indexOf('Nome');
+    var colCamp = hdrs.indexOf('Campeonato');
     var colVoto = hdrs.indexOf('Voto ' + indice);
     var colTel  = hdrs.indexOf('Telefone');
 
     for (var r=1; r<all.length; r++) {
-      if ((all[r][0]||'').toLowerCase()===nomeLow
-       && (all[r][2]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
+      if ((all[r][colNome]||'').toLowerCase()===nomeLow
+       && (all[r][colCamp]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
         wsVotos.getRange(r+1, colVoto+1).setValue(d.bebida || '');
         if (d.telefone) wsVotos.getRange(r+1, colTel+1).setValue(d.telefone);
         return json_({ ok:true });
@@ -165,6 +186,48 @@ function doPost(e) {
     });
     wsVotos.appendRow(row);
     return json_({ ok:true });
+  }
+
+  // Enviar/atualizar foto do participante (opcional)
+  if (d.action === 'foto') {
+    var wsCamps = aba_(ABA_CAMPS, HDR_CAMPS);
+    var wsVotos = aba_(ABA_VOTOS, HDR_VOTOS);
+    var camp = rows_(wsCamps).find(function(c){ return (c['Nome']||'').toLowerCase()===(d.campeonato||'').toLowerCase(); });
+    if (!camp) return json_({ erro: 'Campeonato não encontrado' });
+
+    var mime  = d.mime || 'image/jpeg';
+    var bytes = Utilities.base64Decode(d.foto);
+    var blob  = Utilities.newBlob(bytes, mime, (d.nome||'foto') + '_' + new Date().getTime() + '.jpg');
+    var file  = pastaFotos_().createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var url = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+
+    var nomeLow = (d.nome||'').toLowerCase();
+    var all  = wsVotos.getDataRange().getValues();
+    var hdrs = all[0];
+    var colNome = hdrs.indexOf('Nome');
+    var colCamp = hdrs.indexOf('Campeonato');
+    var colFoto = hdrs.indexOf('Foto');
+    var colTel  = hdrs.indexOf('Telefone');
+
+    for (var r=1; r<all.length; r++) {
+      if ((all[r][colNome]||'').toLowerCase()===nomeLow
+       && (all[r][colCamp]||'').toLowerCase()===(d.campeonato||'').toLowerCase()) {
+        wsVotos.getRange(r+1, colFoto+1).setValue(url);
+        if (d.telefone) wsVotos.getRange(r+1, colTel+1).setValue(d.telefone);
+        return json_({ ok:true, url: url });
+      }
+    }
+
+    var row = hdrs.map(function(h) {
+      if (h === 'Nome') return d.nome;
+      if (h === 'Telefone') return d.telefone || '';
+      if (h === 'Campeonato') return d.campeonato;
+      if (h === 'Foto') return url;
+      return '';
+    });
+    wsVotos.appendRow(row);
+    return json_({ ok:true, url: url });
   }
 
   // Revelar resultados (admin)

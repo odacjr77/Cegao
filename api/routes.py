@@ -24,6 +24,13 @@ class AdminAction(BaseModel):
     telefone: str
     campeonato: str
 
+class FotoBody(BaseModel):
+    campeonato: str
+    nome: str
+    telefone: str = ""
+    foto: str
+    mime: str = "image/jpeg"
+
 @router.post("/entrar")
 def entrar(body: EntrarBody):
     admin = False
@@ -49,7 +56,18 @@ def criar(body: CriarCampeonato):
 
 @router.post("/votos")
 def votar(body: VotoBody):
-    r = db.registrar_voto(body.campeonato, body.nome, body.telefone, body.votos)
+    r = db.registrar_voto(body.campeonato, body.nome, body.telefone, body.indice, body.bebida)
+    if "erro" in r:
+        raise HTTPException(400, r["erro"])
+    return r
+
+@router.post("/foto")
+def enviar_foto(body: FotoBody):
+    if not body.mime.startswith("image/"):
+        raise HTTPException(400, "Arquivo precisa ser uma imagem")
+    if len(body.foto) > 4_000_000:
+        raise HTTPException(400, "Imagem muito grande")
+    r = db.enviar_foto(body.campeonato, body.nome, body.telefone, body.foto, body.mime)
     if "erro" in r:
         raise HTTPException(400, r["erro"])
     return r
