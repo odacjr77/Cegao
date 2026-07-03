@@ -170,6 +170,10 @@ async function abrirCamp(i) {
 
   document.getElementById('topbar-camp').textContent = camp.nome;
 
+  // Registra participante (ou atualiza timestamp se já entrou antes)
+  asPost({ action: 'registrar_participante', nome: st.nome, telefone: st.tel, campeonato: camp.nome })
+    .catch(() => {});
+
   try {
     const todos = await asGet({ action: 'votos', campeonato: camp.nome });
     const meu   = todos.find(v => (v['Nome']||'').toLowerCase() === st.nome.toLowerCase());
@@ -193,10 +197,23 @@ async function abrirCamp(i) {
 // Verifica periodicamente se o admin liberou mais bebidas ou revelou o
 // resultado, e avisa o participante sem precisar recarregar a página.
 async function verificarNovasBebidas() {
+  await checarAtualizacaoVotacao(false);
+}
+
+// Botão "↻ Atualizar" na tela de votação — mesma checagem, mas manual,
+// então sempre dá algum feedback (mesmo quando não há novidade).
+async function atualizarVotacao() {
+  const btn = document.getElementById('btn-atualizar');
+  if (btn) { btn.disabled = true; btn.classList.add('girando'); }
+  await checarAtualizacaoVotacao(true);
+  if (btn) { btn.disabled = false; btn.classList.remove('girando'); }
+}
+
+async function checarAtualizacaoVotacao(manual) {
   try {
     const camps = await asGet({ action: 'campeonatos' });
     const atual = camps.find(c => c.nome === st.campNome);
-    if (!atual) return;
+    if (!atual) { if (manual) toast('Campeonato não encontrado', 'err'); return; }
 
     if (atual.revelado) {
       clearInterval(_pollLiberadas);
@@ -211,8 +228,12 @@ async function verificarNovasBebidas() {
       st.campBebidas = atual.bebidas || [];
       renderCamposVoto();
       toast(`🍾 Nova bebida liberada! Já dá pra votar na Bebida ${liberadas}.`, 'ok');
+    } else if (manual) {
+      toast('Nenhuma bebida nova por enquanto', '');
     }
-  } catch(e) { /* silencioso — tenta de novo no próximo ciclo */ }
+  } catch(e) {
+    if (manual) toast('Erro ao verificar atualizações', 'err');
+  }
 }
 
 function renderCamposVoto() {
